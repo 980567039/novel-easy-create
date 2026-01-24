@@ -23,7 +23,14 @@ export default function ResultsPage() {
     }
   }, [novels, router]);
 
-  const currentNovel = novels.find(n => n.id === currentNovelId);
+  const currentNovel = novels.find(n => n.id === currentNovelId) || novels[0];
+
+  // 如果找不到当前 novel 但有 novels 存在，自动切换到第一个
+  useEffect(() => {
+    if (novels.length > 0 && !novels.find(n => n.id === currentNovelId)) {
+      setCurrentNovelId(novels[0].id);
+    }
+  }, [novels, currentNovelId, setCurrentNovelId]);
 
   if (!currentNovel) {
     return null; 

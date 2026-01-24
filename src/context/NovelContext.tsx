@@ -13,7 +13,7 @@ export interface NovelData {
 interface NovelContextType {
   novels: NovelData[];
   currentNovelId: string | null;
-  addNovel: (name: string, result: ExtractionResult) => void;
+  addNovel: (name: string, result: ExtractionResult) => string;
   removeNovel: (id: string) => void;
   setCurrentNovelId: (id: string | null) => void;
   getNovelByName: (name: string) => NovelData | undefined;
@@ -53,22 +53,22 @@ export function NovelProvider({ children }: { children: ReactNode }) {
     }
   }, [novels, isInitialized]);
 
-  const addNovel = (name: string, result: ExtractionResult) => {
+  const addNovel = (name: string, result: ExtractionResult): string => {
+    const newId = crypto.randomUUID();
+    const newNovel: NovelData = {
+      id: newId,
+      name,
+      result,
+      createdAt: Date.now()
+    };
+    
     setNovels(prev => {
-      // Check if exists by name, if so, remove old one (overwrite logic handled by UI, here we just enforce unique names or update)
-      // Actually, let's allow same name but different ID? Or enforce unique names?
-      // User asked for "overwrite prompt", implying unique names.
       const filtered = prev.filter(n => n.name !== name);
-      const newNovel: NovelData = {
-        id: crypto.randomUUID(),
-        name,
-        result,
-        createdAt: Date.now()
-      };
-      const updated = [newNovel, ...filtered];
-      setCurrentNovelId(newNovel.id); // Auto switch to new
-      return updated;
+      return [newNovel, ...filtered];
     });
+    setCurrentNovelId(newId);
+    
+    return newId;
   };
 
   const removeNovel = (id: string) => {
