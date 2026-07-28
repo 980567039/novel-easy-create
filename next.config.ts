@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  devIndicators: false,
   reactCompiler: true,
   // 开启重写规则，把 /api/local 转发到 LM Studio
   async rewrites() {

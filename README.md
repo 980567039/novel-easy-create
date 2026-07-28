@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo-mark.svg" width="112" height="112" alt="小白作家 Logo" />
+</p>
+
 # 小白作家
 
 小白作家是一套面向新手作者的 AI 长篇小说创作系统。你负责提供创意和做出关键选择，系统负责整理故事圣经、规划长篇大纲、辅助逐章创作，并帮助小说持续推进到完结。
@@ -11,6 +15,7 @@
 - 场景表、正文草稿和章节定稿；
 - 桌面端与手机 H5 小说预览；
 - 小说项目 JSON 导入与完整备份导出；
+- 账号注册、登录和会话管理，每个账号只读取自己的小说与 AI 设置；
 - PostgreSQL 持久化存储。
 
 ## 功能预览
@@ -103,6 +108,7 @@ PostgreSQL 数据保存在 Docker volume 中，普通的 `docker compose down` �
 POSTGRES_USER=xiaobai
 POSTGRES_PASSWORD=请替换为足够长的字母数字随机密码
 POSTGRES_DB=xiaobai_writer
+AUTH_BOOTSTRAP_TOKEN=请使用openssl-rand-hex-32生成高强度随机口令
 ```
 
 启动时显式加载：
@@ -175,6 +181,8 @@ XIAOBAI_IMAGE=ghcr.io/980567039/xiaobai-writer
 
 AI API Key 推荐在部署完成后通过“AI 设置”页面保存，不要写进部署文件。
 
+`AUTH_BOOTSTRAP_TOKEN` 只在首位站点所有者注册时使用。首位用户会原地接管升级前的本地作者账号，已有项目、章节、正文和 AI 配置的 ID 与内容都不会改变。初始化成功后，新用户正常注册，不再需要该口令。不要把它提交到 Git。
+
 ### 3. 只拉取并启动，不在服务器构建
 
 ```bash
@@ -187,7 +195,7 @@ docker compose --env-file .env.server -f docker-compose.server.yml up -d
 ```bash
 docker compose --env-file .env.server -f docker-compose.server.yml ps
 docker stats --no-stream
-curl http://127.0.0.1:3001/api/projects
+curl http://127.0.0.1:3001/api/health
 ```
 
 确认应用健康后，再让现有 Nginx/Caddy 域名反向代理到 `http://127.0.0.1:3001`。停止小白作家时必须继续指定服务器 Compose 文件：
@@ -247,6 +255,7 @@ npm run start            # 运行生产构建
 npm run lint             # ESLint
 npx tsc --noEmit         # TypeScript 检查
 npm run test:ai-eval     # AI 固定评估
+npm run test:auth        # 账号隔离集成测试（只允许独立测试库）
 npm run db:validate      # 校验 Prisma Schema
 npm run db:generate      # 生成 Prisma Client
 npm run db:sync          # 初始化或同步数据库结构
@@ -258,6 +267,7 @@ npm run db:studio        # 打开 Prisma Studio
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | PostgreSQL 连接字符串 |
+| `AUTH_BOOTSTRAP_TOKEN` | 首次注册 | 首位所有者接管既有本地项目时使用的高强度口令 |
 | `AI_PROVIDER` | 否 | 默认 `openai-compatible` |
 | `AI_API_KEY` | 否 | 服务端 AI Key，也可在设置页保存 |
 | `AI_BASE_URL` | 否 | OpenAI-compatible API 地址 |

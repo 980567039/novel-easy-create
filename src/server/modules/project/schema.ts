@@ -23,3 +23,11 @@ export const CreateProjectInputSchema = z.object({
 });
 
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
+
+export const DeleteProjectInputSchema = z.object({
+  // Do not trim this value: deletion requires an exact title match so an
+  // accidental leading/trailing space cannot silently confirm another title.
+  confirmationTitle: z.string().min(1, "请输入项目名称").max(200, "项目名称不能超过 200 个字符"),
+}).strict();
+
+export type DeleteProjectInput = z.infer<typeof DeleteProjectInputSchema>;

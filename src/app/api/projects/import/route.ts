@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import { ProjectTransferDocumentSchema } from "@/server/modules/project/transfer-schema";
-import { importProject } from "@/server/modules/project/transfer-service";
+import { importProject, ProjectTitleConflictError } from "@/server/modules/project/transfer-service";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,8 @@ async function readImportDocument(request: Request): Promise<unknown> {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   let body: unknown;
   try {
     body = await readImportDocument(request);
@@ -53,9 +56,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const project = await importProject(getDatabase(), parsed.data);
+    const db = getDatabase();
+    const overwrite = new URL(request.url).searchParams.get("overwrite") === "true";
+    const project = await importProject(db, auth.user.id, parsed.data, { overwrite });
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
+    if (error instanceof ProjectTitleConflictError) {
+      return NextResponse.json(
+        {
+          code: "PROJECT_TITLE_CONFLICT",
+          error: `已存在名为《${error.title}》的项目。`,
+          title: error.title,
+          conflictCount: error.conflictCount,
+        },
+        { status: 409 },
+      );
+    }
     console.error("[projects/import] failed", error);
     return NextResponse.json({ code: "IMPORT_FAILED", error: "项目导入失败，未写入任何数据。" }, { status: 500 });
   }

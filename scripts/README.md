@@ -11,7 +11,7 @@ chmod +x scripts/start-mac.command
 open scripts/start-mac.command
 ```
 
-脚本会检查 Node.js、安装依赖、创建 `.env`、生成 Prisma Client、尝试启动 Homebrew PostgreSQL 16、同步数据库结构，然后运行 `npm run dev`。
+脚本会检查 Node.js、安装依赖、创建 `.env`、生成首次注册初始化口令、生成 Prisma Client、尝试启动 Homebrew PostgreSQL 16、同步数据库结构，然后运行 `npm run dev`。启动窗口会显示初始化口令，首位账号注册时填写一次即可。
 
 ## Windows
 
@@ -27,5 +27,6 @@ PowerShell 脚本使用 `-ExecutionPolicy Bypass` 仅对本次启动生效，不
 ## 两个平台的共同前提
 
 - `.env.example` 会在缺少 `.env` 时自动复制为 `.env`；
+- 缺少 `AUTH_BOOTSTRAP_TOKEN` 时会自动生成高强度随机值并写入本机 `.env`；
 - 数据库不可用时，前端仍会启动，但项目创建接口会返回 `DATABASE_UNAVAILABLE`；
 - 关闭启动脚本窗口会停止开发服务器。

@@ -26,6 +26,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
+import { apiFetch } from "@/lib/api-client";
 
 type ReaderTheme = "day" | "eye" | "night";
 
@@ -282,7 +283,7 @@ export default function NovelReaderPage() {
     setLoadingDirectory(true);
     setDirectoryError(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/reader`, { cache: "no-store" });
+      const response = await apiFetch(`/api/projects/${projectId}/reader`, { cache: "no-store" });
       const body = await response.json().catch(() => ({})) as DirectoryPayload;
       if (!response.ok) throw new Error(body.error ?? "无法加载小说目录");
 
@@ -336,7 +337,7 @@ export default function NovelReaderPage() {
       setLoadingChapter(true);
       setChapter(null);
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/projects/${projectId}/reader?chapterId=${encodeURIComponent(selectedId ?? "")}`,
           { cache: "no-store", signal: controller.signal },
         );

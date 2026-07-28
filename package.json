@@ -12,6 +12,7 @@
     "db:sync": "prisma db push",
     "db:migrate": "npm run db:sync",
     "db:studio": "prisma studio",
+    "test:auth": "node tests/auth/isolation.mjs",
     "test:ai-eval": "node tests/ai-evals/run.mjs"
   },
   "dependencies": {

@@ -40,6 +40,10 @@ if [ ! -f ".env" ]; then
   echo "已创建 .env；如需使用云端模型，请编辑其中的 AI_API_KEY。"
 fi
 
+XIAOBAI_BOOTSTRAP_TOKEN="$(node scripts/ensure-bootstrap-token.mjs .env)"
+echo "首次注册初始化口令：$XIAOBAI_BOOTSTRAP_TOKEN"
+echo "请在首位账号注册页填写此口令；已有账号时可忽略。"
+
 echo
 echo "正在生成 Prisma Client..."
 npm run db:generate || {

@@ -12,6 +12,8 @@ import {
   type OutlineDraft,
   type OutlineVolumeDraft,
 } from "@/server/ai";
+import { authenticateApiRequest } from "@/server/api-auth";
+import { ownsProject } from "@/server/authorization";
 import { getDatabase } from "@/server/db";
 import {
   buildOutlinePrompt,
@@ -44,6 +46,7 @@ function databaseUnavailable() {
 
 async function reserveOutlineGenerationJob(
   db: ReturnType<typeof getDatabase>,
+  userId: string,
   projectId: string,
   metadata: {
     totalVolumes: number;
@@ -92,6 +95,7 @@ async function reserveOutlineGenerationJob(
     const created = await transaction.generationJob.create({
       data: {
         projectId,
+        requesterId: userId,
         type: "OUTLINE",
         createdBy: "SYSTEM",
         status: "QUEUED",
@@ -119,9 +123,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
     const db = getDatabase();
+    if (!(await ownsProject(db, auth.user.id, id))) {
+      return NextResponse.json({ code: "PROJECT_NOT_FOUND", error: "小说项目不存在。" }, { status: 404 });
+    }
     const jobId = new URL(request.url).searchParams.get("jobId") ?? undefined;
     if (jobId) {
       const status = await getOutlineGenerationStatus(db, id, jobId);
@@ -147,14 +156,19 @@ export async function GET(
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   let db: ReturnType<typeof getDatabase>;
   let project: Awaited<ReturnType<typeof getOutlineProject>>;
   try {
     db = getDatabase();
+    if (!(await ownsProject(db, auth.user.id, id))) {
+      return NextResponse.json({ code: "PROJECT_NOT_FOUND", error: "小说项目不存在。" }, { status: 404 });
+    }
     project = await getOutlineProject(db, id);
   } catch {
     console.error("[outline] project lookup failed");
@@ -186,7 +200,7 @@ export async function POST(
 
   let job: Awaited<ReturnType<typeof reserveOutlineGenerationJob>>;
   try {
-    job = await reserveOutlineGenerationJob(db, id, {
+    job = await reserveOutlineGenerationJob(db, auth.user.id, id, {
       totalVolumes: chapterCounts.length,
       targetChapters: targetChapterCount,
     });
@@ -231,7 +245,7 @@ export async function POST(
       console.error("[outline] job status update failed");
     }
   };
-  void runOutlineGeneration(db, id, project, storyBible, job.id, targetChapterCount, chapterCounts, updateJob);
+  void runOutlineGeneration(db, auth.user.id, id, project, storyBible, job.id, targetChapterCount, chapterCounts, updateJob);
   const queuedJob = {
     id: job.id,
     jobId: job.id,
@@ -413,6 +427,7 @@ function safePipelineMessage(error: unknown) {
 
 async function runOutlineGeneration(
   db: ReturnType<typeof getDatabase>,
+  userId: string,
   id: string,
   project: NonNullable<Awaited<ReturnType<typeof getOutlineProject>>>,
   storyBible: NonNullable<NonNullable<Awaited<ReturnType<typeof getOutlineProject>>>["storyBible"]>,
@@ -442,7 +457,7 @@ async function runOutlineGeneration(
     });
     let provider: AiProvider;
     try {
-      provider = await getConfiguredAiProvider();
+      provider = await getConfiguredAiProvider(userId);
     } catch (error) {
       if (error instanceof AiProviderError) throw error;
       throw new AiProviderError("AI provider configuration unavailable", "configuration", error);

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 
-import { getOrCreateLocalUser } from "./service";
 import { ProjectTransferDocumentSchema, type ProjectTransferDocument } from "./transfer-schema";
 
 function jsonInput(value: Prisma.JsonValue): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -33,10 +32,9 @@ function mapReference(value: string | null, idMap: Map<string, string>) {
   return value === null ? null : (idMap.get(value) ?? null);
 }
 
-export async function exportProject(db: PrismaClient, projectId: string): Promise<ProjectTransferDocument | null> {
-  const owner = await getOrCreateLocalUser(db);
+export async function exportProject(db: PrismaClient, userId: string, projectId: string): Promise<ProjectTransferDocument | null> {
   const project = await db.novelProject.findFirst({
-    where: { id: projectId, ownerId: owner.id },
+    where: { id: projectId, ownerId: userId },
     include: {
       storyBible: true,
       characters: { orderBy: { createdAt: "asc" } },
@@ -127,8 +125,24 @@ export async function exportProject(db: PrismaClient, projectId: string): Promis
   return ProjectTransferDocumentSchema.parse(document);
 }
 
-export async function importProject(db: PrismaClient, document: ProjectTransferDocument) {
-  const owner = await getOrCreateLocalUser(db);
+export class ProjectTitleConflictError extends Error {
+  readonly title: string;
+  readonly conflictCount: number;
+
+  constructor(title: string, conflictCount: number) {
+    super(`项目名称已存在：${title}`);
+    this.name = "ProjectTitleConflictError";
+    this.title = title;
+    this.conflictCount = conflictCount;
+  }
+}
+
+export async function importProject(
+  db: PrismaClient,
+  userId: string,
+  document: ProjectTransferDocument,
+  options: { overwrite?: boolean } = {},
+) {
   const entityCollections = [
     document.characters,
     document.characterRelations,
@@ -149,10 +163,26 @@ export async function importProject(db: PrismaClient, document: ProjectTransferD
   }
 
   return db.$transaction(async (tx) => {
+    const title = document.project.title;
+    // Serialize imports of the same title for this user. Without this lock,
+    // two concurrent first-time imports could both observe zero conflicts.
+    await tx.$queryRaw<Array<{ lock: string }>>`
+      SELECT pg_advisory_xact_lock(hashtext(${`project-import:${userId}:${title}`}))::text AS lock
+    `;
+    const conflictCount = await tx.novelProject.count({ where: { ownerId: userId, title } });
+    if (conflictCount > 0 && !options.overwrite) {
+      throw new ProjectTitleConflictError(title, conflictCount);
+    }
+    if (conflictCount > 0) {
+      // This deletion and every create below share one transaction. Any
+      // validation/database failure restores all projects removed here.
+      await tx.novelProject.deleteMany({ where: { ownerId: userId, title } });
+    }
+
     const project = await tx.novelProject.create({
       data: {
         ...document.project,
-        ownerId: owner.id,
+        ownerId: userId,
         createdBy: "IMPORT",
       },
     });
@@ -206,7 +236,7 @@ export async function importProject(db: PrismaClient, document: ProjectTransferD
       ...item,
       id: idMap.get(item.id)!,
       projectId,
-      authorId: owner.id,
+      authorId: userId,
       chapterPlanId: idMap.get(item.chapterPlanId)!,
       parentRevisionId: mapReference(item.parentRevisionId, idMap),
     })) });
@@ -250,7 +280,7 @@ export async function importProject(db: PrismaClient, document: ProjectTransferD
       ...item,
       id: idMap.get(item.id)!,
       projectId,
-      userId: owner.id,
+      userId,
       generationJobId: null,
       chapterPlanId: mapReference(item.chapterPlanId, idMap),
       selectedOption: optionalJsonInput(item.selectedOption),
