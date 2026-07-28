@@ -27,6 +27,13 @@ const batchJobSelect = {
 
 type BatchJob = Prisma.GenerationJobGetPayload<{ select: typeof batchJobSelect }>;
 
+const globalForBatchDrafts = globalThis as unknown as {
+  batchDraftAbortControllers?: Map<string, AbortController>;
+};
+const batchDraftAbortControllers = globalForBatchDrafts.batchDraftAbortControllers
+  ?? new Map<string, AbortController>();
+globalForBatchDrafts.batchDraftAbortControllers = batchDraftAbortControllers;
+
 function asJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -49,8 +56,11 @@ async function persistBatchOutput(
   output: BatchDraftJobOutput,
   options: { status?: "RUNNING" | "SUCCEEDED" | "FAILED"; error?: string | null; startedAt?: Date; finishedAt?: Date } = {},
 ) {
-  return db.generationJob.update({
-    where: { id: jobId },
+  const updated = await db.generationJob.updateMany({
+    // Every runner write is conditional. A concurrent cancellation changes
+    // the status first, causing this update to become a no-op instead of
+    // reviving the parent as RUNNING/SUCCEEDED.
+    where: { id: jobId, status: { in: ["QUEUED", "RUNNING"] } },
     data: {
       output: asJson(output),
       progress: options.status === "SUCCEEDED" ? 100 : progressFor(output),
@@ -59,7 +69,101 @@ async function persistBatchOutput(
       startedAt: options.startedAt,
       finishedAt: options.finishedAt,
     },
-    select: batchJobSelect,
+  });
+  return updated.count === 1;
+}
+
+async function getBatchJobStatus(db: PrismaClient, jobId: string) {
+  const job = await db.generationJob.findUnique({ where: { id: jobId }, select: { status: true } });
+  return job?.status ?? null;
+}
+
+async function getSerializedBatchJobStatus(db: PrismaClient, jobId: string) {
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "GenerationJob" WHERE id = ${jobId} FOR UPDATE
+    `;
+    const job = await tx.generationJob.findUnique({ where: { id: jobId }, select: { status: true } });
+    return job?.status ?? null;
+  }, { maxWait: 10_000, timeout: 20_000 });
+}
+
+async function parentAllowsRevisionSave(tx: Prisma.TransactionClient, userId: string, projectId: string, jobId: string) {
+  await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "GenerationJob" WHERE id = ${jobId} FOR UPDATE
+  `;
+  const parent = await tx.generationJob.findFirst({
+    where: {
+      id: jobId,
+      projectId,
+      requesterId: userId,
+      type: "DRAFT",
+      chapterPlanId: null,
+      status: "RUNNING",
+    },
+    select: { id: true },
+  });
+  return Boolean(parent);
+}
+
+async function settleChapterAfterCancellation(
+  db: PrismaClient,
+  jobId: string,
+  chapterId: string,
+  result: "succeeded" | "failed" | "cancelled",
+  error?: string,
+) {
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "GenerationJob" WHERE id = ${jobId} FOR UPDATE
+    `;
+    const job = await tx.generationJob.findFirst({
+      where: { id: jobId, status: "CANCELLED" },
+      select: { output: true },
+    });
+    const parsed = parseBatchOutput(job?.output);
+    if (!job || !parsed.success) return;
+    const output = parsed.data;
+    const index = output.chapters.findIndex((chapter) => chapter.id === chapterId);
+    const chapter = output.chapters[index];
+    if (index < 0 || !chapter || chapter.status !== "running") return;
+
+    const chapters = [...output.chapters];
+    chapters[index] = {
+      ...chapter,
+      status: result,
+      ...(error ? { error } : {}),
+    };
+    const completedDelta = result === "cancelled" ? 0 : 1;
+    const nextOutput: BatchDraftJobOutput = {
+      ...output,
+      completed: output.completed + completedDelta,
+      succeeded: output.succeeded + (result === "succeeded" ? 1 : 0),
+      failed: output.failed + (result === "failed" ? 1 : 0),
+      currentChapter: null,
+      chapters,
+      message: result === "succeeded"
+        ? `批量任务已终止；第 ${chapter.number} 章在终止前已开始，并已完成保存。`
+        : result === "failed"
+          ? `批量任务已终止；第 ${chapter.number} 章执行失败，不再继续后续章节。`
+          : "批量任务已终止，未再启动新的正文生成。",
+    };
+    await tx.generationJob.update({
+      where: { id: jobId },
+      data: { output: asJson(nextOutput), progress: progressFor(nextOutput) },
+    });
+  }, { maxWait: 10_000, timeout: 20_000 });
+}
+
+async function cancelChildJob(db: PrismaClient, childJobId: string) {
+  await db.generationJob.updateMany({
+    where: { id: childJobId, status: { in: ["QUEUED", "RUNNING"] } },
+    data: {
+      status: "CANCELLED",
+      error: null,
+      finishedAt: new Date(),
+      output: asJson({ phase: "cancelled", message: "父批量任务已终止，未开始正文生成。" }),
+    },
   });
 }
 
@@ -178,6 +282,81 @@ export async function getBatchDraftJob(
   return { projectFound: true as const, job, remainingCount };
 }
 
+export type CancelBatchDraftResult =
+  | { kind: "project_not_found" }
+  | { kind: "job_not_found" }
+  | { kind: "not_cancellable"; job: BatchJob }
+  | { kind: "cancelled"; job: BatchJob; reused: boolean };
+
+export async function cancelBatchDraftJob(
+  db: PrismaClient,
+  userId: string,
+  projectId: string,
+  jobId: string,
+): Promise<CancelBatchDraftResult> {
+  const result: CancelBatchDraftResult = await db.$transaction(async (tx) => {
+    const project = await tx.novelProject.findFirst({
+      where: { id: projectId, ownerId: userId },
+      select: { id: true },
+    });
+    if (!project) return { kind: "project_not_found" };
+
+    // Lock the parent row so cancellation reads the latest output and wins
+    // atomically over any runner update that was already in flight.
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "GenerationJob" WHERE id = ${jobId} FOR UPDATE
+    `;
+    const job = await tx.generationJob.findFirst({
+      where: {
+        id: jobId,
+        projectId,
+        requesterId: userId,
+        type: "DRAFT",
+        chapterPlanId: null,
+        project: { ownerId: userId },
+      },
+      select: batchJobSelect,
+    });
+    const parsed = parseBatchOutput(job?.output);
+    if (!job || !parsed.success) return { kind: "job_not_found" };
+    if (job.status === "CANCELLED") return { kind: "cancelled", job, reused: true };
+    if (job.status !== "QUEUED" && job.status !== "RUNNING") {
+      return { kind: "not_cancellable", job };
+    }
+
+    const output = parsed.data;
+    const chapters = output.chapters.map((chapter) => chapter.status === "pending"
+      ? { ...chapter, status: "cancelled" as const }
+      : chapter);
+    const cancelledOutput: BatchDraftJobOutput = {
+      ...output,
+      phase: "cancelled",
+      message: output.currentChapter
+        ? "批量任务已终止；当前已开始的章节可能完成保存，不再启动后续章节。"
+        : "批量任务已终止，不再启动后续章节。",
+      chapters,
+    };
+    const cancelled = await tx.generationJob.update({
+      where: { id: job.id },
+      data: {
+        status: "CANCELLED",
+        output: asJson(cancelledOutput),
+        error: null,
+        finishedAt: new Date(),
+      },
+      select: batchJobSelect,
+    });
+    return { kind: "cancelled", job: cancelled, reused: false };
+  }, { maxWait: 10_000, timeout: 20_000 });
+  if (result.kind === "cancelled") {
+    // Best effort for the current process. The database save-boundary check
+    // remains authoritative when the request and runner are on different
+    // processes or the provider has already returned.
+    batchDraftAbortControllers.get(jobId)?.abort();
+  }
+  return result;
+}
+
 async function shouldSkipChapter(db: PrismaClient, userId: string, projectId: string, chapterId: string) {
   const chapter = await db.chapterPlan.findFirst({
     where: { id: chapterId, projectId, project: { ownerId: userId } },
@@ -213,11 +392,12 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
       phase: "running",
       message: `正在串行生成 ${output.total} 章正文初稿。`,
     };
-    await persistBatchOutput(db, jobId, output, { status: "RUNNING", error: null, startedAt: new Date() });
+    if (!await persistBatchOutput(db, jobId, output, { status: "RUNNING", error: null, startedAt: new Date() })) return;
 
     for (let index = 0; index < output.chapters.length; index += 1) {
       const chapter = output.chapters[index];
       if (!chapter || chapter.status !== "pending") continue;
+      if (await getBatchJobStatus(db, jobId) !== "RUNNING") return;
 
       if (await shouldSkipChapter(db, userId, projectId, chapter.id)) {
         const chapters = [...output.chapters];
@@ -230,7 +410,7 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
           chapters,
           message: `第 ${chapter.number} 章已有正文或正在生成，已跳过。`,
         };
-        await persistBatchOutput(db, jobId, output, { status: "RUNNING" });
+        if (!await persistBatchOutput(db, jobId, output, { status: "RUNNING" })) return;
         continue;
       }
 
@@ -242,8 +422,9 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
         chapters,
         message: `正在生成第 ${chapter.number} 章《${chapter.title}》。`,
       };
-      await persistBatchOutput(db, jobId, output, { status: "RUNNING" });
+      if (!await persistBatchOutput(db, jobId, output, { status: "RUNNING" })) return;
 
+      let childJobId: string | null = null;
       try {
         const childJob = await createChapterGenerationJob(db, {
           userId,
@@ -252,11 +433,38 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
           type: "DRAFT",
           idempotencyKey: `batch-draft:${jobId}:${chapter.id}`,
         });
+        childJobId = childJob.id;
         await updateChapterGenerationJob(db, childJob.id, "running", {
           progress: 10,
           startedAt: new Date(),
         });
-        await generateDraft(db, userId, chapter.id, childJob.id, {});
+        const controller = new AbortController();
+        const generationTimeout = setTimeout(() => controller.abort(), 300_000);
+        generationTimeout.unref?.();
+        batchDraftAbortControllers.set(jobId, controller);
+        try {
+          if (await getBatchJobStatus(db, jobId) !== "RUNNING") {
+            controller.abort();
+            await cancelChildJob(db, childJob.id);
+            await settleChapterAfterCancellation(db, jobId, chapter.id, "cancelled");
+            return;
+          }
+          await generateDraft(db, userId, chapter.id, childJob.id, {}, {
+            signal: controller.signal,
+            canSaveRevision: (tx) => parentAllowsRevisionSave(tx, userId, projectId, jobId),
+          });
+        } finally {
+          clearTimeout(generationTimeout);
+          if (batchDraftAbortControllers.get(jobId) === controller) batchDraftAbortControllers.delete(jobId);
+        }
+
+        if (await getBatchJobStatus(db, jobId) === "CANCELLED") {
+          // generateDraft saves its revision before returning. The in-flight
+          // chapter is therefore reported as succeeded, while the parent stays
+          // CANCELLED and no next chapter is started.
+          await settleChapterAfterCancellation(db, jobId, chapter.id, "succeeded");
+          return;
+        }
 
         const nextChapters = [...output.chapters];
         nextChapters[index] = { ...chapter, status: "succeeded" };
@@ -271,12 +479,38 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
       } catch (error) {
         console.error(`[batch-drafts] chapter ${chapter.id} failed`, error);
         const message = chapterFailureMessage();
-        const childJob = await db.generationJob.findFirst({
-          where: { projectId, chapterPlanId: chapter.id, idempotencyKey: `batch-draft:${jobId}:${chapter.id}` },
-          select: { id: true },
-        });
-        if (childJob) {
-          await updateChapterGenerationJob(db, childJob.id, "failed", {
+        // Taking the parent row lock waits for an in-flight DELETE transaction
+        // to commit. A child cancelled by that path is never overwritten as
+        // FAILED by this error handler.
+        if (await getSerializedBatchJobStatus(db, jobId) === "CANCELLED") {
+          const savedRevision = await db.chapterRevision.findFirst({
+            where: { chapterPlanId: chapter.id },
+            orderBy: { revisionNumber: "desc" },
+            select: { id: true, wordCount: true },
+          });
+          if (savedRevision) {
+            if (childJobId) {
+              await db.generationJob.updateMany({
+                where: { id: childJobId, status: { in: ["QUEUED", "RUNNING"] } },
+                data: {
+                  status: "SUCCEEDED",
+                  progress: 100,
+                  chapterRevisionId: savedRevision.id,
+                  finishedAt: new Date(),
+                  error: null,
+                  output: asJson({ phase: "succeeded", message: "正文已在父任务终止前保存。", revisionId: savedRevision.id, wordCount: savedRevision.wordCount }),
+                },
+              });
+            }
+            await settleChapterAfterCancellation(db, jobId, chapter.id, "succeeded");
+          } else {
+            if (childJobId) await cancelChildJob(db, childJobId);
+            await settleChapterAfterCancellation(db, jobId, chapter.id, "cancelled");
+          }
+          return;
+        }
+        if (childJobId) {
+          await updateChapterGenerationJob(db, childJobId, "failed", {
             progress: 10,
             error: message,
             finishedAt: new Date(),
@@ -293,7 +527,19 @@ export async function runBatchDraftJob(db: PrismaClient, userId: string, project
           message: `第 ${chapter.number} 章生成失败，正在继续下一章。`,
         };
       }
-      await persistBatchOutput(db, jobId, output, { status: "RUNNING" });
+      if (!await persistBatchOutput(db, jobId, output, { status: "RUNNING" })) {
+        const chapterResult = output.chapters[index]?.status;
+        if (await getBatchJobStatus(db, jobId) === "CANCELLED" && (chapterResult === "succeeded" || chapterResult === "failed")) {
+          await settleChapterAfterCancellation(
+            db,
+            jobId,
+            chapter.id,
+            chapterResult,
+            chapterResult === "failed" ? chapterFailureMessage() : undefined,
+          );
+        }
+        return;
+      }
     }
 
     output = {

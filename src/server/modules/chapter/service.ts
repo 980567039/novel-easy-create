@@ -220,18 +220,44 @@ export async function generateScenePlan(db: Database, userId: string, chapterId:
   return result;
 }
 
-export async function generateDraft(db: Database, userId: string, chapterId: string, jobId: string, input: GenerateChapterInput) {
+export class ChapterDraftGenerationCancelledError extends Error {
+  constructor() {
+    super("正文生成已在保存前取消。");
+    this.name = "ChapterDraftGenerationCancelledError";
+  }
+}
+
+export interface GenerateDraftExecutionOptions {
+  signal?: AbortSignal;
+  /**
+   * Runs inside the same transaction that creates the revision. Batch jobs use
+   * this hook to lock/check their parent immediately before the save boundary.
+   */
+  canSaveRevision?: (tx: Prisma.TransactionClient) => Promise<boolean>;
+}
+
+export async function generateDraft(
+  db: Database,
+  userId: string,
+  chapterId: string,
+  jobId: string,
+  input: GenerateChapterInput,
+  execution: GenerateDraftExecutionOptions = {},
+) {
   const context = await buildChapterContext(db, userId, chapterId);
   if (!context) throw new Error("章节不存在。");
   const provider = await getConfiguredAiProvider(userId);
   const sceneJob = await getChapterGenerationJob(db, chapterId, undefined, "SCENE_PLAN");
   const scenePlan = sceneJob ? asRecord(sceneJob.output).data : null;
-  const result = await provider.generateText({ temperature: input.temperature ?? 0.7, maxTokens: 20_000, timeoutMs: 300_000, messages: [
+  const result = await provider.generateText({ temperature: input.temperature ?? 0.7, maxTokens: 20_000, timeoutMs: 300_000, signal: execution.signal, messages: [
     { role: "system", content: "你是一名中文长篇小说作者。根据章节计划、场景表和上下文写出连贯的正文初稿。遵守故事圣经的视角和文风，不擅自改变锁定事实。只输出正文，不要标题、解释或 Markdown。" },
     { role: "user", content: JSON.stringify({ ...context, scenePlan, instruction: input.instruction ?? null }) },
   ] });
   await updateChapterGenerationJob(db, jobId, "saving", { progress: 85, model: result.model ?? null });
   const revision = await db.$transaction(async (tx) => {
+    if (execution.canSaveRevision && !await execution.canSaveRevision(tx)) {
+      throw new ChapterDraftGenerationCancelledError();
+    }
     const latest = await tx.chapterRevision.findFirst({ where: { chapterPlanId: chapterId }, orderBy: { revisionNumber: "desc" }, select: { revisionNumber: true, id: true } });
     return tx.chapterRevision.create({ data: { projectId: context.project.id, chapterPlanId: chapterId, parentRevisionId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, content: result.content.trim(), wordCount: wordCount(result.content), source: "AI", createdBy: "AI", status: "DRAFT" } });
   });

@@ -42,13 +42,13 @@ export const BatchDraftChapterSchema = z.object({
   id: z.string().uuid(),
   number: z.number().int().positive(),
   title: z.string(),
-  status: z.enum(["pending", "running", "succeeded", "failed", "skipped"]),
+  status: z.enum(["pending", "running", "succeeded", "failed", "skipped", "cancelled"]),
   error: z.string().optional(),
 });
 
 export const BatchDraftJobOutputSchema = z.object({
   kind: z.literal("BATCH_DRAFT"),
-  phase: z.enum(["queued", "running", "succeeded", "failed"]),
+  phase: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]),
   message: z.string(),
   requestedCount: BatchDraftCountSchema,
   total: z.number().int().nonnegative(),

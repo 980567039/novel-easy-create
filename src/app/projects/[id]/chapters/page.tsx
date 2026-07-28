@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeft,
@@ -176,8 +176,10 @@ export default function ChaptersPage() {
   const [batchRemainingCount, setBatchRemainingCount] = useState<number | null>(null);
   const [batchChecking, setBatchChecking] = useState(true);
   const [batchStarting, setBatchStarting] = useState(false);
+  const [batchCancelling, setBatchCancelling] = useState(false);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchPollVersion, setBatchPollVersion] = useState(0);
+  const batchPollGenerationRef = useRef(0);
 
   const selectedChapter = useMemo(() => chapters.find((chapter) => chapter.id === selectedId) ?? chapters[0] ?? null, [chapters, selectedId]);
   const currentWordCount = wordCount(content);
@@ -193,6 +195,7 @@ export default function ChaptersPage() {
   const batchProgress = Math.min(100, Math.max(0, asNumber(batchJob?.progress) ?? (batchTotal > 0 ? Math.round((batchCompleted / batchTotal) * 100) : 0)));
   const batchChapterStates = Array.isArray(batchOutput.chapters) ? batchOutput.chapters.map(asRecord) : [];
   const failedBatchChapters = batchChapterStates.filter((item) => normalizedStatus(item.status) === "failed");
+  const cancelledBatchChapters = batchChapterStates.filter((item) => normalizedStatus(item.status) === "cancelled");
   const currentBatchChapter = asRecord(batchOutput.currentChapter);
   const currentBatchChapterLabel = asText(currentBatchChapter.title)
     ?? (asNumber(currentBatchChapter.number) !== null ? `第 ${asNumber(currentBatchChapter.number)} 章` : asText(batchOutput.currentChapter));
@@ -260,6 +263,8 @@ export default function ChaptersPage() {
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
+    const pollingGeneration = batchPollGenerationRef.current + 1;
+    batchPollGenerationRef.current = pollingGeneration;
 
     async function refreshChapterList() {
       const response = await apiFetch(`/api/projects/${projectId}/chapters`, { cache: "no-store" });
@@ -280,12 +285,13 @@ export default function ChaptersPage() {
     }
 
     async function checkBatch(firstCheck: boolean) {
+      if (cancelled || batchPollGenerationRef.current !== pollingGeneration) return;
       if (firstCheck) setBatchChecking(true);
       try {
         const response = await apiFetch(`/api/projects/${projectId}/chapters/batch-drafts`, { cache: "no-store" });
         const body = await response.json().catch(() => ({})) as BatchDraftResponse;
         if (!response.ok) throw new Error(body.error ?? body.message ?? "无法读取批量生成任务");
-        if (cancelled) return;
+        if (cancelled || batchPollGenerationRef.current !== pollingGeneration) return;
         const nextJob = body.job ?? null;
         setBatchJob(nextJob);
         setBatchRemainingCount(typeof body.remainingCount === "number" ? body.remainingCount : null);
@@ -296,9 +302,9 @@ export default function ChaptersPage() {
           await refreshChapterList();
         }
       } catch (requestError) {
-        if (!cancelled) setBatchError(requestError instanceof Error ? requestError.message : "无法读取批量生成任务");
+        if (!cancelled && batchPollGenerationRef.current === pollingGeneration) setBatchError(requestError instanceof Error ? requestError.message : "无法读取批量生成任务");
       } finally {
-        if (!cancelled && firstCheck) setBatchChecking(false);
+        if (!cancelled && batchPollGenerationRef.current === pollingGeneration && firstCheck) setBatchChecking(false);
       }
     }
 
@@ -344,7 +350,7 @@ export default function ChaptersPage() {
   };
 
   const startBatchDrafts = async () => {
-    if (batchRunning || batchStarting || batchChecking || missingDraftCount === 0) return;
+    if (batchRunning || batchStarting || batchCancelling || batchChecking || missingDraftCount === 0) return;
     setBatchStarting(true);
     setBatchError(null);
     setNotice(null);
@@ -365,6 +371,52 @@ export default function ChaptersPage() {
       setBatchError(requestError instanceof Error ? requestError.message : "批量生成任务启动失败");
     } finally {
       setBatchStarting(false);
+    }
+  };
+
+  const cancelBatchDrafts = async () => {
+    if (!batchJob || !batchRunning || batchCancelling) return;
+    const confirmed = window.confirm("确定要终止这次批量生成吗？已生成完成的章节会保留，尚未开始的章节将停止生成。");
+    if (!confirmed) return;
+
+    batchPollGenerationRef.current += 1;
+    setBatchCancelling(true);
+    setBatchChecking(false);
+    setBatchError(null);
+    let cancellationSucceeded = false;
+    try {
+      const response = await apiFetch(`/api/projects/${projectId}/chapters/batch-drafts?jobId=${encodeURIComponent(batchJob.id)}`, {
+        method: "DELETE",
+      });
+      const body = await response.json().catch(() => ({})) as BatchDraftResponse;
+      if (!response.ok) throw new Error(body.error ?? body.message ?? "终止批量生成失败");
+      if (!body.job) throw new Error("终止接口未返回任务信息");
+
+      cancellationSucceeded = true;
+      setBatchJob(body.job);
+      setBatchRemainingCount(typeof body.remainingCount === "number" ? body.remainingCount : null);
+      setNotice("批量生成已终止；已经完成的正文初稿已保留。");
+
+      const chaptersResponse = await apiFetch(`/api/projects/${projectId}/chapters`, { cache: "no-store" });
+      const chaptersBody = await chaptersResponse.json().catch(() => ({})) as { chapters?: unknown[]; error?: string };
+      if (!chaptersResponse.ok) throw new Error(chaptersBody.error ?? "任务已终止，但章节列表刷新失败");
+      const nextChapters = (chaptersBody.chapters ?? [])
+        .map((item) => normalizeChapter(item))
+        .filter((item): item is Chapter => Boolean(item))
+        .sort((a, b) => a.number - b.number);
+      if (typeof window !== "undefined") {
+        for (const chapter of nextChapters) {
+          if (typeof chapter.latestRevision?.id !== "string") continue;
+          const key = localDraftKey(projectId, chapter.id);
+          if (window.localStorage.getItem(key) === "") window.localStorage.removeItem(key);
+        }
+      }
+      setChapters(nextChapters);
+    } catch (requestError) {
+      setBatchError(requestError instanceof Error ? requestError.message : "终止批量生成失败");
+      if (!cancellationSucceeded) setBatchPollVersion((current) => current + 1);
+    } finally {
+      setBatchCancelling(false);
     }
   };
 
@@ -458,7 +510,7 @@ export default function ChaptersPage() {
   };
 
   const generateDraft = async () => {
-    if (!selectedChapter || batchRunning) return;
+    if (!selectedChapter || batchRunning || batchCancelling) return;
     setBusy("draft");
     setError(null);
     setNotice(null);
@@ -535,7 +587,7 @@ export default function ChaptersPage() {
                   <select
                     value={String(batchCount)}
                     onChange={(event) => setBatchCount(event.target.value === "all" ? "all" : Number(event.target.value) as BatchCount)}
-                    disabled={batchRunning || batchStarting || batchChecking || missingDraftCount === 0}
+                    disabled={batchRunning || batchStarting || batchCancelling || batchChecking || missingDraftCount === 0}
                     className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 sm:w-32"
                   >
                     {[5, 10, 20, 50].map((count) => <option key={count} value={count} disabled={count > missingDraftCount}>{count} 章</option>)}
@@ -545,11 +597,11 @@ export default function ChaptersPage() {
                 <button
                   type="button"
                   onClick={() => void startBatchDrafts()}
-                  disabled={batchRunning || batchStarting || batchChecking || missingDraftCount === 0 || busy === "draft"}
+                  disabled={batchRunning || batchStarting || batchCancelling || batchChecking || missingDraftCount === 0 || busy === "draft"}
                   className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                 >
-                  {(batchStarting || batchChecking) ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  {batchStarting ? "正在启动..." : batchChecking ? "读取任务..." : batchRunning ? "批量生成中" : "开始批量生成"}
+                  {(batchStarting || batchCancelling || batchChecking) ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  {batchStarting ? "正在启动..." : batchCancelling ? "终止中..." : batchChecking ? "读取任务..." : batchRunning ? "批量生成中" : "开始批量生成"}
                 </button>
               </div>
             </div>
@@ -558,12 +610,26 @@ export default function ChaptersPage() {
               {batchError && <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{batchError}</p>}
               {batchJob && (
                 <div className="mt-4 border-t border-slate-100 pt-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                     <p className="inline-flex items-center gap-2 font-semibold text-slate-800">
                       {batchRunning && <LoaderCircle size={15} className="animate-spin text-indigo-600" />}
                       {batchStatus === "succeeded" ? "批量生成已完成" : batchStatus === "failed" ? "批量任务已失败" : batchStatus === "cancelled" ? "批量任务已取消" : "正在批量生成正文"}
                     </p>
-                    <span className="font-bold tabular-nums text-indigo-700">{batchProgress}%</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold tabular-nums text-indigo-700">{batchProgress}%</span>
+                      {batchRunning && (
+                        <button
+                          type="button"
+                          onClick={() => void cancelBatchDrafts()}
+                          disabled={batchCancelling}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-wait disabled:opacity-60"
+                          aria-label="终止批量生成正文"
+                        >
+                          {batchCancelling && <LoaderCircle size={13} className="animate-spin" />}
+                          {batchCancelling ? "终止中..." : "终止生成"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div
                     role="progressbar"
@@ -574,18 +640,21 @@ export default function ChaptersPage() {
                     aria-valuetext={`已完成 ${batchCompleted} 章，共 ${batchTotal} 章`}
                     className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100"
                   >
-                    <div className={`h-full rounded-full transition-[width] duration-500 ${batchStatus === "failed" ? "bg-rose-500" : "bg-indigo-600"}`} style={{ width: `${batchProgress}%` }} />
+                    <div className={`h-full rounded-full transition-[width] duration-500 ${batchStatus === "failed" ? "bg-rose-500" : batchStatus === "cancelled" ? "bg-amber-500" : "bg-indigo-600"}`} style={{ width: `${batchProgress}%` }} />
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-5">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-6">
                     <span>完成 <strong className="text-slate-800">{batchCompleted}/{batchTotal}</strong></span>
                     <span>成功 <strong className="text-emerald-700">{batchSucceeded}</strong></span>
                     <span>失败 <strong className="text-rose-700">{batchFailed}</strong></span>
                     <span>跳过 <strong className="text-slate-700">{batchSkipped}</strong></span>
+                    <span>取消 <strong className="text-amber-700">{cancelledBatchChapters.length}</strong></span>
                     <span>剩余可生成 <strong className="text-slate-700">{batchRemainingCount ?? missingDraftCount}</strong></span>
                   </div>
                   {(currentBatchChapterLabel || asText(batchOutput.message)) && (
                     <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                      {currentBatchChapterLabel ? `当前：${currentBatchChapterLabel}` : asText(batchOutput.message)}
+                      {batchStatus === "cancelled"
+                        ? asText(batchOutput.message)
+                        : currentBatchChapterLabel ? `当前：${currentBatchChapterLabel}` : asText(batchOutput.message)}
                     </p>
                   )}
                   {failedBatchChapters.length > 0 && (
@@ -620,7 +689,7 @@ export default function ChaptersPage() {
             {selectedChapter && <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-5 py-5 sm:px-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 text-2xl font-extrabold tracking-tight">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectedChapter.status === "FINAL" || selectedChapter.revisionStatus === "FINAL" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[selectedChapter.status === "FINAL" ? "FINAL" : selectedChapter.revisionStatus ?? selectedChapter.status ?? ""] ?? "草稿"}</span></div></div>
               <div className="grid gap-6 px-5 py-6 sm:px-8 xl:grid-cols-[minmax(0,1fr)_300px]">
-                <div className="min-w-0"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">正文编辑</h3><p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p></div><button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button></div><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[520px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-5 text-[15px] leading-8 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="flex items-center gap-2"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div></div>
+                <div className="min-w-0"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">正文编辑</h3><p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p></div><button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning || batchCancelling} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchCancelling ? "终止中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button></div><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[520px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-5 text-[15px] leading-8 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="flex items-center gap-2"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div></div>
                 <aside className="space-y-4"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">场景表</h3><button type="button" onClick={() => void generateScenePlan()} disabled={busy !== null} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"><Sparkles size={14} />{busy === "scene" ? "生成中" : scenePlan ? "重新生成" : "生成"}</button></div><dl className="space-y-3 text-sm"><div><dt className="text-xs font-semibold text-slate-400">本章目标</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.objective ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">主要冲突</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.conflict ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">结束变化</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.expectedOutcome ?? "待补充"}</dd></div>{scenePlan?.chapterPromise && <div><dt className="text-xs font-semibold text-slate-400">读者期待</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.chapterPromise}</dd></div>}{scenePlan?.endingState && <div><dt className="text-xs font-semibold text-slate-400">结束状态</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.endingState}</dd></div>}</dl>{scenePlan?.scenes && scenePlan.scenes.length > 0 && <div className="mt-4 border-t border-slate-200 pt-3"><p className="mb-2 text-xs font-semibold text-slate-400">场景节拍</p><ol className="space-y-3">{scenePlan.scenes.map((scene, index) => <li key={`${scene.title ?? "scene"}-${index}`} className="flex gap-2 text-xs leading-relaxed text-slate-600"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white font-semibold text-indigo-600">{scene.order ?? index + 1}</span><span><strong className="font-semibold text-slate-700">{scene.title ?? "场景"}</strong>{scene.setting ? ` · ${scene.setting}` : ""}{scene.objective ? <span className="mt-0.5 block text-slate-500">目标：{scene.objective}</span> : null}{scene.turningPoint ? <span className="mt-0.5 block text-slate-500">转折：{scene.turningPoint}</span> : null}</span></li>)}</ol></div>}</div><div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm leading-relaxed text-indigo-900"><p className="font-bold">写作提示</p><p className="mt-2 text-indigo-700">每一场都应让人物、关系、信息或危险程度至少发生一项可追踪变化。</p></div></aside>
               </div>
             </section>}

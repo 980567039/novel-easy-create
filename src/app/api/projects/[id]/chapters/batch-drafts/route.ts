@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import {
+  cancelBatchDraftJob,
   getBatchDraftJob,
   reserveBatchDraftJob,
   runBatchDraftJob,
@@ -84,5 +85,48 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     console.error("[batch-drafts] request failed", error);
     return NextResponse.json({ code: "BATCH_DRAFT_REQUEST_FAILED", error: "批量正文任务创建失败。" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
+  const { id: projectId } = await params;
+  const jobId = new URL(request.url).searchParams.get("jobId")?.trim();
+  if (!jobId) {
+    return NextResponse.json({ code: "VALIDATION_ERROR", error: "缺少要终止的批量任务 jobId。" }, { status: 400 });
+  }
+
+  try {
+    const db = getDatabase();
+    const result = await cancelBatchDraftJob(db, auth.user.id, projectId, jobId);
+    if (result.kind === "project_not_found") {
+      return NextResponse.json({ code: "PROJECT_NOT_FOUND", error: "小说项目不存在。" }, { status: 404 });
+    }
+    if (result.kind === "job_not_found") {
+      return NextResponse.json({ code: "BATCH_JOB_NOT_FOUND", error: "批量正文任务不存在。" }, { status: 404 });
+    }
+    if (result.kind === "not_cancellable") {
+      return NextResponse.json(
+        { code: "BATCH_JOB_NOT_CANCELLABLE", error: "只有排队中或执行中的批量任务可以终止。", job: serializeBatchDraftJob(result.job) },
+        { status: 409 },
+      );
+    }
+
+    const job = serializeBatchDraftJob(result.job);
+    const remaining = await getBatchDraftJob(db, auth.user.id, projectId, jobId);
+    return NextResponse.json({
+      job,
+      jobId: job?.id ?? jobId,
+      status: "cancelled",
+      progress: job?.progress ?? result.job.progress,
+      output: job?.output ?? result.job.output,
+      cancelled: true,
+      reused: result.reused,
+      remainingCount: remaining.remainingCount,
+    });
+  } catch (error) {
+    console.error("[batch-drafts] cancellation failed", error);
+    return NextResponse.json({ code: "BATCH_DRAFT_CANCEL_FAILED", error: "批量正文任务终止失败。" }, { status: 500 });
   }
 }
