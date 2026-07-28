@@ -1,0 +1,82 @@
+name: Publish GHCR images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-default-branch-images
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build ${{ matrix.target }} image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: runner
+            stable_tag: latest
+            immutable_prefix: sha-
+          - target: migrator
+            stable_tag: migrator-latest
+            immutable_prefix: migrator-sha-
+
+    steps:
+      - name: Check out the default branch source
+        uses: actions/checkout@v4
+        with:
+          # A manual run is intentionally a rebuild of the default branch so
+          # it cannot overwrite stable server tags with a feature branch.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.default_branch || github.sha }}
+
+      - name: Normalize the GHCR image name
+        id: image
+        shell: bash
+        run: |
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${owner}/xiaobai-writer" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve the checked-out commit
+        id: commit
+        shell: bash
+        run: echo "short_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=${{ matrix.stable_tag }}
+            type=raw,value=${{ matrix.immutable_prefix }}${{ steps.commit.outputs.short_sha }}
+
+      - name: Build and publish linux/amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=novel-role-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=novel-role-${{ matrix.target }}

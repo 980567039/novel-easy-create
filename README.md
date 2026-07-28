@@ -127,6 +127,77 @@ docker compose --env-file .env.docker up -d --build
 
 如果小白作家部署在远程服务器，而 LM Studio 运行在你自己的电脑上，容器中的 `localhost` 指向容器本身，不能直接访问电脑上的 LM Studio。此时需要使用容器可访问的局域网地址或中转服务地址。
 
+## 资源受限服务器的安全部署
+
+当服务器上已有其他重要服务时，不要在服务器执行 `docker compose up --build`。请使用 [docker-compose.server.yml](docker-compose.server.yml)，它只拉取 GitHub Actions 已经构建好的镜像，不会在服务器运行 npm、Next.js 或 Prisma 的镜像构建过程。
+
+### 资源保护范围
+
+| 服务 | CPU 上限 | 内存上限 | 进程数上限 |
+| --- | ---: | ---: | ---: |
+| Web | 0.75 核 | 768 MB | 256 |
+| PostgreSQL | 0.35 核 | 384 MB | 128 |
+| 数据结构同步 | 0.50 核 | 384 MB | 128 |
+
+数据结构同步完成后才会启动 Web，因此正常运行时最多占用约 `1.10` 核和 `1152 MB` 内存。容器不能额外使用宿主机 Swap，日志限制为每个容器最多 3 个 10 MB 文件；如果发生全局 OOM，小白作家容器设置了更高的淘汰优先级，尽量保护服务器上的原有服务。
+
+Web 默认只监听服务器回环地址 `127.0.0.1:3001`，不会与现有的 `3000` 服务冲突，也不会绕过 Nginx/Caddy 直接暴露到公网。
+
+### 1. 由 GitHub 构建镜像
+
+`.github/workflows/publish-ghcr.yml` 会在 `main` 分支更新后使用 GitHub Actions 构建 `linux/amd64` 镜像，并发布到：
+
+```text
+ghcr.io/980567039/xiaobai-writer:latest
+ghcr.io/980567039/xiaobai-writer:migrator-latest
+```
+
+建议将这两个 GHCR Package 设置为 Public。如果保持 Private，需要先在服务器使用只具备 `read:packages` 权限的 GitHub Token 登录：
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u 980567039 --password-stdin
+```
+
+不要把 Token 直接写进命令历史、Compose 文件或 Git 仓库。
+
+### 2. 创建服务器环境变量
+
+在服务器项目目录创建 `.env.server`：
+
+```dotenv
+POSTGRES_USER=xiaobai
+POSTGRES_PASSWORD=请替换为足够长的字母数字随机密码
+POSTGRES_DB=xiaobai_writer
+APP_BIND_ADDRESS=127.0.0.1
+APP_PORT=3001
+XIAOBAI_IMAGE=ghcr.io/980567039/xiaobai-writer
+```
+
+AI API Key 推荐在部署完成后通过“AI 设置”页面保存，不要写进部署文件。
+
+### 3. 只拉取并启动，不在服务器构建
+
+```bash
+docker compose --env-file .env.server -f docker-compose.server.yml pull
+docker compose --env-file .env.server -f docker-compose.server.yml up -d
+```
+
+验证运行状态和资源限制：
+
+```bash
+docker compose --env-file .env.server -f docker-compose.server.yml ps
+docker stats --no-stream
+curl http://127.0.0.1:3001/api/projects
+```
+
+确认应用健康后，再让现有 Nginx/Caddy 域名反向代理到 `http://127.0.0.1:3001`。停止小白作家时必须继续指定服务器 Compose 文件：
+
+```bash
+docker compose --env-file .env.server -f docker-compose.server.yml down
+```
+
+这不会停止其他 Compose 项目，也不会删除 PostgreSQL volume。不要添加 `-v`。
+
 ## 本地开发
 
 ### 环境要求
@@ -193,6 +264,9 @@ npm run db:studio        # 打开 Prisma Studio
 | `AI_PLANNING_MODEL` | 否 | 故事圣经和大纲模型 |
 | `AI_WRITING_MODEL` | 否 | 正文创作模型 |
 | `AI_CHECK_MODEL` | 否 | 质量检查模型 |
+| `APP_BIND_ADDRESS` | 否 | Docker 对外绑定地址，服务器建议 `127.0.0.1` |
+| `APP_PORT` | 否 | Docker 对外端口，服务器默认 `3001` |
+| `XIAOBAI_IMAGE` | 否 | 服务器部署使用的 GHCR 镜像名 |
 
 `.env.example` 只提供安全的空值示例。不要提交包含真实密钥的 `.env`、`.env.docker` 或日志文件。
 
@@ -204,6 +278,8 @@ src/server/              数据库、AI Provider 和业务服务
 prisma/                  数据模型与数据库迁移
 scripts/                 macOS / Windows 一键启动脚本
 tests/ai-evals/          AI 契约和固定评估
+.github/workflows/       GitHub Actions 镜像构建
+docker-compose.server.yml 资源受限服务器部署
 docs/DEVELOPMENT_PLAN.md 产品与技术开发计划
 ```
 
