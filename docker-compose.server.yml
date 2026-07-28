@@ -45,9 +45,8 @@ services:
     restart: unless-stopped
 
   migrate:
-    build:
-      context: .
-      target: migrator
+    image: ${XIAOBAI_IMAGE:-ghcr.io/980567039/xiaobai-writer}:migrator-latest
+    pull_policy: always
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-novel_role}?schema=public
       NODE_OPTIONS: --max-old-space-size=256
@@ -64,9 +63,8 @@ services:
     restart: "no"
 
   web:
-    build:
-      context: .
-      target: runner
+    image: ${XIAOBAI_IMAGE:-ghcr.io/980567039/xiaobai-writer}:latest
+    pull_policy: always
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-novel_role}?schema=public
       AI_PROVIDER: ${AI_PROVIDER:-openai-compatible}
@@ -82,7 +80,7 @@ services:
       PORT: 3000
       NODE_OPTIONS: --max-old-space-size=512
     ports:
-      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3001}:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully
