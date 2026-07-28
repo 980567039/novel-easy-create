@@ -24,6 +24,44 @@ export const GenerateChapterInputSchema = z.object({
 
 export type GenerateChapterInput = z.infer<typeof GenerateChapterInputSchema>;
 
+export const BatchDraftCountSchema = z.union([
+  z.literal(5),
+  z.literal(10),
+  z.literal(20),
+  z.literal(50),
+  z.literal("all"),
+]);
+
+export const BatchDraftInputSchema = z.object({
+  count: BatchDraftCountSchema,
+}).strict();
+
+export type BatchDraftInput = z.infer<typeof BatchDraftInputSchema>;
+
+export const BatchDraftChapterSchema = z.object({
+  id: z.string().uuid(),
+  number: z.number().int().positive(),
+  title: z.string(),
+  status: z.enum(["pending", "running", "succeeded", "failed", "skipped"]),
+  error: z.string().optional(),
+});
+
+export const BatchDraftJobOutputSchema = z.object({
+  kind: z.literal("BATCH_DRAFT"),
+  phase: z.enum(["queued", "running", "succeeded", "failed"]),
+  message: z.string(),
+  requestedCount: BatchDraftCountSchema,
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  succeeded: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  currentChapter: BatchDraftChapterSchema.pick({ id: true, number: true, title: true }).nullable(),
+  chapters: z.array(BatchDraftChapterSchema),
+});
+
+export type BatchDraftJobOutput = z.infer<typeof BatchDraftJobOutputSchema>;
+
 const SceneSchema = z.object({
   order: z.number().int().positive(),
   title: NonEmptyString,

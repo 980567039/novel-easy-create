@@ -16,9 +16,9 @@ function wordCount(text: string) {
   return text.replace(/\s+/g, "").length;
 }
 
-export async function listProjectChapters(db: Database, projectId: string) {
-  const project = await db.novelProject.findUnique({
-    where: { id: projectId },
+export async function listProjectChapters(db: Database, userId: string, projectId: string) {
+  const project = await db.novelProject.findFirst({
+    where: { id: projectId, ownerId: userId },
     select: { id: true, title: true },
   });
   if (!project) return null;
@@ -87,9 +87,9 @@ function groupChaptersByVolume(chapters: Array<{ volume: { id: string; number: n
   return [...groups.values()].sort((a, b) => a.number - b.number);
 }
 
-export async function getChapterDetail(db: Database, chapterId: string, projectId?: string) {
-  const chapter = await db.chapterPlan.findUnique({
-    where: { id: chapterId },
+export async function getChapterDetail(db: Database, userId: string, chapterId: string, projectId?: string) {
+  const chapter = await db.chapterPlan.findFirst({
+    where: { id: chapterId, ...(projectId ? { projectId } : {}), project: { ownerId: userId } },
     select: {
       id: true,
       projectId: true,
@@ -135,9 +135,9 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-export async function updateChapterPlan(db: Database, chapterId: string, projectId: string | undefined, input: UpdateChapterPlanInput) {
-  const chapter = await db.chapterPlan.findUnique({ where: { id: chapterId }, select: { id: true, projectId: true, locked: true } });
-  if (!chapter || (projectId && chapter.projectId !== projectId)) return null;
+export async function updateChapterPlan(db: Database, userId: string, chapterId: string, projectId: string | undefined, input: UpdateChapterPlanInput) {
+  const chapter = await db.chapterPlan.findFirst({ where: { id: chapterId, ...(projectId ? { projectId } : {}), project: { ownerId: userId } }, select: { id: true, projectId: true, locked: true } });
+  if (!chapter) return null;
   if (chapter.locked) throw new Error("章节计划已锁定，无法修改。");
   return db.chapterPlan.update({
     where: { id: chapterId },
@@ -154,13 +154,13 @@ export async function updateChapterPlan(db: Database, chapterId: string, project
   });
 }
 
-export async function createChapterGenerationJob(db: Database, args: { projectId: string; chapterPlanId: string; type: "SCENE_PLAN" | "DRAFT"; idempotencyKey?: string }) {
+export async function createChapterGenerationJob(db: Database, args: { userId: string; projectId: string; chapterPlanId: string; type: "SCENE_PLAN" | "DRAFT"; idempotencyKey?: string }) {
   if (args.idempotencyKey) {
-    const existing = await db.generationJob.findFirst({ where: { projectId: args.projectId, chapterPlanId: args.chapterPlanId, type: args.type, idempotencyKey: args.idempotencyKey }, select: { id: true, status: true, progress: true, model: true, output: true, error: true, createdAt: true, finishedAt: true } });
+    const existing = await db.generationJob.findFirst({ where: { projectId: args.projectId, chapterPlanId: args.chapterPlanId, requesterId: args.userId, type: args.type, idempotencyKey: args.idempotencyKey }, select: { id: true, status: true, progress: true, model: true, output: true, error: true, createdAt: true, finishedAt: true } });
     if (existing) return existing;
   }
   return db.generationJob.create({
-    data: { projectId: args.projectId, chapterPlanId: args.chapterPlanId, type: args.type, createdBy: "SYSTEM", status: "QUEUED", progress: 0, ...(args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : {}), output: asJson({ phase: "queued", message: "已排队，等待生成任务开始。" }) },
+    data: { projectId: args.projectId, chapterPlanId: args.chapterPlanId, requesterId: args.userId, type: args.type, createdBy: "SYSTEM", status: "QUEUED", progress: 0, ...(args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : {}), output: asJson({ phase: "queued", message: "已排队，等待生成任务开始。" }) },
     select: { id: true, status: true, progress: true, model: true, output: true, error: true, createdAt: true, finishedAt: true },
   });
 }
@@ -179,19 +179,19 @@ export async function getChapterGenerationJob(db: Database, chapterId: string, j
   return db.generationJob.findFirst({ where: { chapterPlanId: chapterId, ...(jobId ? { id: jobId } : {}), ...(type ? { type } : {}) }, orderBy: { createdAt: "desc" }, select: { id: true, chapterPlanId: true, type: true, status: true, progress: true, model: true, output: true, error: true, createdAt: true, updatedAt: true, startedAt: true, finishedAt: true } });
 }
 
-export async function saveDraftRevision(db: Database, chapterId: string, projectId: string | undefined, content: string, summary?: string | null) {
-  const chapter = await db.chapterPlan.findUnique({ where: { id: chapterId }, select: { id: true, projectId: true } });
-  if (!chapter || (projectId && chapter.projectId !== projectId)) return null;
+export async function saveDraftRevision(db: Database, userId: string, chapterId: string, projectId: string | undefined, content: string, summary?: string | null) {
+  const chapter = await db.chapterPlan.findFirst({ where: { id: chapterId, ...(projectId ? { projectId } : {}), project: { ownerId: userId } }, select: { id: true, projectId: true } });
+  if (!chapter) return null;
   const trimmed = content.trim();
   if (!trimmed) throw new Error("正文内容不能为空。");
   return db.$transaction(async (tx) => {
     const latest = await tx.chapterRevision.findFirst({ where: { chapterPlanId: chapterId }, orderBy: { revisionNumber: "desc" }, select: { revisionNumber: true, id: true } });
-    return tx.chapterRevision.create({ data: { projectId: chapter.projectId, chapterPlanId: chapterId, parentRevisionId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, content: trimmed, wordCount: wordCount(trimmed), summary: summary?.trim() || null, source: "USER", createdBy: "USER", status: "DRAFT" } });
+    return tx.chapterRevision.create({ data: { projectId: chapter.projectId, chapterPlanId: chapterId, authorId: userId, parentRevisionId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, content: trimmed, wordCount: wordCount(trimmed), summary: summary?.trim() || null, source: "USER", createdBy: "USER", status: "DRAFT" } });
   });
 }
 
-export async function buildChapterContext(db: Database, chapterId: string) {
-  const chapter = await getChapterDetail(db, chapterId);
+export async function buildChapterContext(db: Database, userId: string, chapterId: string) {
+  const chapter = await getChapterDetail(db, userId, chapterId);
   if (!chapter) return null;
   const previous = await db.chapterPlan.findMany({ where: { projectId: chapter.projectId, number: { lt: chapter.number } }, orderBy: { number: "desc" }, take: 3, select: { number: true, title: true, summary: true, expectedOutcome: true, revisions: { where: { status: "FINAL" }, orderBy: { revisionNumber: "desc" }, take: 1, select: { summary: true } } } });
   return {
@@ -206,10 +206,10 @@ export async function buildChapterContext(db: Database, chapterId: string) {
   };
 }
 
-export async function generateScenePlan(db: Database, chapterId: string, jobId: string, input: GenerateChapterInput) {
-  const context = await buildChapterContext(db, chapterId);
+export async function generateScenePlan(db: Database, userId: string, chapterId: string, jobId: string, input: GenerateChapterInput) {
+  const context = await buildChapterContext(db, userId, chapterId);
   if (!context) throw new Error("章节不存在。");
-  const provider = await getConfiguredAiProvider();
+  const provider = await getConfiguredAiProvider(userId);
   const result = await provider.generateStructured({ schemaName: "ScenePlan", temperature: input.temperature ?? 0.2, maxTokens: 6_000, timeoutMs: 180_000, messages: [
     { role: "system", content: "你是一名长篇小说策划编辑。请根据章节计划和上下文生成可执行的场景表。每个场景必须有角色目标、阻碍、行动、转折和结果；场景结束后必须推动至少一项人物或剧情状态变化。严格只输出 JSON。" },
     { role: "user", content: JSON.stringify({ ...context, instruction: input.instruction ?? null }) },
@@ -220,10 +220,10 @@ export async function generateScenePlan(db: Database, chapterId: string, jobId: 
   return result;
 }
 
-export async function generateDraft(db: Database, chapterId: string, jobId: string, input: GenerateChapterInput) {
-  const context = await buildChapterContext(db, chapterId);
+export async function generateDraft(db: Database, userId: string, chapterId: string, jobId: string, input: GenerateChapterInput) {
+  const context = await buildChapterContext(db, userId, chapterId);
   if (!context) throw new Error("章节不存在。");
-  const provider = await getConfiguredAiProvider();
+  const provider = await getConfiguredAiProvider(userId);
   const sceneJob = await getChapterGenerationJob(db, chapterId, undefined, "SCENE_PLAN");
   const scenePlan = sceneJob ? asRecord(sceneJob.output).data : null;
   const result = await provider.generateText({ temperature: input.temperature ?? 0.7, maxTokens: 20_000, timeoutMs: 300_000, messages: [
@@ -240,9 +240,9 @@ export async function generateDraft(db: Database, chapterId: string, jobId: stri
   return { ...result, revision };
 }
 
-export async function finalizeChapter(db: Database, chapterId: string, projectId: string | undefined, revisionId?: string) {
-  const chapter = await db.chapterPlan.findUnique({ where: { id: chapterId }, select: { id: true, projectId: true } });
-  if (!chapter || (projectId && chapter.projectId !== projectId)) return null;
+export async function finalizeChapter(db: Database, userId: string, chapterId: string, projectId: string | undefined, revisionId?: string) {
+  const chapter = await db.chapterPlan.findFirst({ where: { id: chapterId, ...(projectId ? { projectId } : {}), project: { ownerId: userId } }, select: { id: true, projectId: true } });
+  if (!chapter) return null;
   const revision = revisionId
     ? await db.chapterRevision.findFirst({ where: { id: revisionId, chapterPlanId: chapterId, projectId: chapter.projectId } })
     : await db.chapterRevision.findFirst({ where: { chapterPlanId: chapterId }, orderBy: { revisionNumber: "desc" } });

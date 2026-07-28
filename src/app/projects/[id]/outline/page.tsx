@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, BookOpen, Clock3, RefreshCw, Sparkles } from "lucide-react";
+import { apiFetch } from "@/lib/api-client";
 
 interface ChapterDetail {
   number: number;
@@ -175,7 +176,7 @@ export default function OutlinePage() {
     setError(null);
     setOutlinePollingWarning(null);
     try {
-      const response = await fetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
+      const response = await apiFetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
       const body = await response.json().catch(() => ({})) as { outline?: OutlineData; error?: string };
       if (response.status === 404) {
         setOutlinePollingStopped(true);
@@ -200,7 +201,7 @@ export default function OutlinePage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/projects", { cache: "no-store" })
+    apiFetch("/api/projects", { cache: "no-store" })
       .then(async (response) => {
         const body = (await response.json()) as { projects?: ProjectTarget[] };
         if (!response.ok) return;
@@ -238,7 +239,7 @@ export default function OutlinePage() {
 
     const poll = async () => {
       try {
-        const response = await fetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
+        const response = await apiFetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
         const body = await response.json().catch(() => ({})) as { outline?: OutlineData; error?: string };
         if (response.status === 404) {
           if (cancelled) return;

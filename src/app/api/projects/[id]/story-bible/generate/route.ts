@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { getConfiguredAiProvider } from "@/server/ai";
 import { StoryBibleDraftSchema } from "@/server/ai/schemas";
+import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 
 export const runtime = "nodejs";
@@ -48,13 +49,15 @@ function asConstraints(value: unknown): Prisma.InputJsonValue {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   const db = getDatabase();
-  const project = await db.novelProject.findUnique({
-    where: { id },
+  const project = await db.novelProject.findFirst({
+    where: { id, ownerId: auth.user.id },
     include: { storyBible: true },
   });
 
@@ -66,7 +69,7 @@ export async function POST(
   const answers = asAnswers(styleGuide.onboardingAnswers);
 
   try {
-    const provider = await getConfiguredAiProvider();
+    const provider = await getConfiguredAiProvider(auth.user.id);
     const result = await provider.generateStructured(
       {
         schemaName: "StoryBibleDraft",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import {
   defaultAiSettings,
@@ -29,9 +30,11 @@ function unavailable(error: unknown) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   try {
-    const config = await getAiSettings(getDatabase());
+    const config = await getAiSettings(getDatabase(), auth.user.id);
     return NextResponse.json({ settings: publicSettings(config) });
   } catch (error) {
     return unavailable(error);
@@ -39,6 +42,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   let body: unknown;
   try {
     body = await request.json();
@@ -55,7 +60,7 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const config = await saveAiSettings(getDatabase(), parsed.data);
+    const config = await saveAiSettings(getDatabase(), auth.user.id, parsed.data);
     return NextResponse.json({ settings: publicSettings(config) });
   } catch (error) {
     return unavailable(error);
@@ -63,6 +68,8 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   let body: unknown;
   try {
     body = await request.json();
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stored = await getAiSettings(getDatabase());
+    const stored = await getAiSettings(getDatabase(), auth.user.id);
     const provider = parsed.data.provider ?? stored.provider ?? defaultAiSettings.provider;
     const providerDefaultBaseUrl = provider === "openai"
       ? "https://api.openai.com/v1"

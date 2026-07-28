@@ -3,8 +3,6 @@ import { Prisma } from "@prisma/client";
 
 import type { CreateProjectInput } from "./schema";
 
-export const LOCAL_USER_EMAIL = "local@novel-role.local";
-
 function answerText(answers: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = answers[key];
@@ -12,15 +10,8 @@ function answerText(answers: Record<string, unknown>, keys: string[]) {
   }
   return null;
 }
-export async function getOrCreateLocalUser(db: PrismaClient) {
-  return db.user.upsert({
-    where: { email: LOCAL_USER_EMAIL },
-    create: { email: LOCAL_USER_EMAIL, displayName: "本地作者" },
-    update: {},
-  });
-}
 
-export async function createProject(db: PrismaClient, input: CreateProjectInput) {
+export async function createProject(db: PrismaClient, userId: string, input: CreateProjectInput) {
   const answers = input.onboardingAnswers ?? input.onboarding ?? {};
   const premise = answerText(answers, ["premise", "storyPremise", "coreConflict"]);
   const theme = answerText(answers, ["theme"]);
@@ -32,15 +23,9 @@ export async function createProject(db: PrismaClient, input: CreateProjectInput)
   } as Prisma.InputJsonValue;
 
   return db.$transaction(async (tx) => {
-    const owner = await tx.user.upsert({
-      where: { email: LOCAL_USER_EMAIL },
-      create: { email: LOCAL_USER_EMAIL, displayName: "本地作者" },
-      update: {},
-    });
-
     const project = await tx.novelProject.create({
       data: {
-        ownerId: owner.id,
+        ownerId: userId,
         title: input.title,
         genre: input.genre ?? null,
         logline,
@@ -72,11 +57,36 @@ export async function createProject(db: PrismaClient, input: CreateProjectInput)
   });
 }
 
-export async function listProjects(db: PrismaClient) {
-  const owner = await getOrCreateLocalUser(db);
+export async function listProjects(db: PrismaClient, userId: string) {
   return db.novelProject.findMany({
-    where: { ownerId: owner.id },
+    where: { ownerId: userId },
     include: { storyBible: true },
     orderBy: { updatedAt: "desc" },
+  });
+}
+
+export type DeleteProjectResult =
+  | { status: "not_found" }
+  | { status: "title_mismatch"; actualTitle: string }
+  | { status: "deleted"; deletedProject: { id: string; title: string } };
+
+export async function deleteProject(
+  db: PrismaClient,
+  userId: string,
+  projectId: string,
+  confirmationTitle: string,
+): Promise<DeleteProjectResult> {
+  return db.$transaction(async (tx) => {
+    const project = await tx.novelProject.findFirst({
+      where: { id: projectId, ownerId: userId },
+      select: { id: true, title: true },
+    });
+    if (!project) return { status: "not_found" };
+    if (project.title !== confirmationTitle) {
+      return { status: "title_mismatch", actualTitle: project.title };
+    }
+
+    await tx.novelProject.delete({ where: { id: project.id } });
+    return { status: "deleted", deletedProject: project };
   });
 }

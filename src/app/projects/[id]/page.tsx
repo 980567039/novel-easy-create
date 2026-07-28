@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, FileText, GitBranch, Sparkles } from "lucide-react";
+import { apiFetch } from "@/lib/api-client";
 
 interface ProjectSummary {
   id: string;
@@ -242,12 +243,12 @@ export default function ProjectDashboardPage() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch("/api/projects").then(async (response) => {
+      apiFetch("/api/projects").then(async (response) => {
         const body = (await response.json()) as { projects?: ProjectSummary[]; error?: string };
         if (!response.ok) throw new Error(body.error ?? "无法加载项目");
         return body.projects?.find((item) => item.id === params.id) ?? null;
       }),
-      fetch(`/api/projects/${params.id}/outline`).then(async (response) => {
+      apiFetch(`/api/projects/${params.id}/outline`).then(async (response) => {
         if (response.status === 404) return null;
         const body = (await response.json()) as { outline?: OutlineSummary | null; error?: string };
         if (!response.ok) throw new Error(body.error ?? "无法加载大纲状态");
@@ -299,7 +300,7 @@ export default function ProjectDashboardPage() {
 
     const poll = async () => {
       try {
-        const response = await fetch(`/api/projects/${params.id}/outline/generate?jobId=${encodeURIComponent(pollingJobId)}`, { cache: "no-store" });
+        const response = await apiFetch(`/api/projects/${params.id}/outline/generate?jobId=${encodeURIComponent(pollingJobId)}`, { cache: "no-store" });
         const body = await response.json().catch(() => ({})) as { job?: RawOutlineJob; status?: RawOutlineJob; outline?: OutlineSummary; error?: string };
         if (response.status === 404) {
           if (cancelled) return;
@@ -327,7 +328,7 @@ export default function ProjectDashboardPage() {
           let completedOutline = body.outline ?? null;
           if (!body.outline) {
             try {
-              const outlineResponse = await fetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
+              const outlineResponse = await apiFetch(`/api/projects/${params.id}/outline`, { cache: "no-store" });
               const outlineBody = await outlineResponse.json().catch(() => ({})) as { outline?: OutlineSummary };
               if (outlineResponse.ok && outlineBody.outline) {
                 completedOutline = outlineBody.outline;
@@ -374,7 +375,7 @@ export default function ProjectDashboardPage() {
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch(`/api/projects/${params.id}/story-bible/generate`, { method: "POST" });
+      const response = await apiFetch(`/api/projects/${params.id}/story-bible/generate`, { method: "POST" });
       const body = (await response.json()) as { storyBible?: ProjectSummary["storyBible"]; error?: string };
       if (!response.ok || !body.storyBible) throw new Error(body.error ?? "故事圣经生成失败");
       setProject((current) => current ? { ...current, storyBible: body.storyBible } : current);
@@ -396,7 +397,7 @@ export default function ProjectDashboardPage() {
     setMessage(null);
     setOutlinePollingWarning(null);
     try {
-      const response = await fetch(`/api/projects/${params.id}/outline/generate`, { method: "POST" });
+      const response = await apiFetch(`/api/projects/${params.id}/outline/generate`, { method: "POST" });
       const body = (await response.json()) as RawOutlineJob & { job?: RawOutlineJob; outline?: OutlineSummary; error?: string };
       const queuedJob = normalizeOutlineJob(body.job ?? body);
       if (response.status === 202 && queuedJob) {

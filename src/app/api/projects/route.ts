@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import { createProject, listProjects } from "@/server/modules/project/service";
 import { CreateProjectInputSchema } from "@/server/modules/project/schema";
@@ -15,9 +16,11 @@ function databaseUnavailableResponse() {
     { status: 503 },
   );
 }
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   try {
-    const projects = await listProjects(getDatabase());
+    const projects = await listProjects(getDatabase(), auth.user.id);
     return NextResponse.json({ projects });
   } catch (error) {
     console.error("[projects] list failed", error);
@@ -26,6 +29,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   let body: unknown;
   try {
     body = await request.json();
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const project = await createProject(getDatabase(), parsed.data);
+    const project = await createProject(getDatabase(), auth.user.id, parsed.data);
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     console.error("[projects] create failed", error);

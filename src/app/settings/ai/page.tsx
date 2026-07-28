@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, KeyRound, Loader2, Save, Server, Wifi } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api-client";
 
 type Provider = "openai" | "openai-compatible" | "lm-studio";
 type Settings = { provider: Provider; baseUrl: string; model: string; enabled: boolean; apiKeyConfigured: boolean; updatedAt: string | null };
@@ -19,7 +20,7 @@ export default function AiSettingsPage() {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/ai")
+    apiFetch("/api/settings/ai")
       .then(async (response) => {
         const body = (await response.json()) as { settings?: Settings; error?: string };
         if (!response.ok) throw new Error(body.error ?? "无法读取 AI 设置");
@@ -42,7 +43,7 @@ export default function AiSettingsPage() {
     event.preventDefault();
     setSaving(true); setMessage(null);
     try {
-      const response = await fetch("/api/settings/ai", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...settings, apiKey: apiKey || undefined }) });
+      const response = await apiFetch("/api/settings/ai", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...settings, apiKey: apiKey || undefined }) });
       const body = (await response.json()) as { settings?: Settings; error?: string };
       if (!response.ok) throw new Error(body.error ?? "保存失败");
       if (body.settings) setSettings(body.settings);
@@ -55,7 +56,7 @@ export default function AiSettingsPage() {
   const testConnection = async () => {
     setTesting(true); setMessage(null);
     try {
-      const response = await fetch("/api/settings/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: settings.provider, baseUrl: settings.baseUrl, model: settings.model, apiKey: apiKey || undefined }) });
+      const response = await apiFetch("/api/settings/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: settings.provider, baseUrl: settings.baseUrl, model: settings.model, apiKey: apiKey || undefined }) });
       const body = (await response.json()) as { ok?: boolean; error?: string; latencyMs?: number };
       if (!response.ok || !body.ok) throw new Error(body.error ?? "连接测试失败");
       setMessage({ text: `连接成功（${body.latencyMs ?? 0} ms）。` });

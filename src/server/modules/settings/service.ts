@@ -1,6 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
 
-import { getOrCreateLocalUser } from "@/server/modules/project/service";
 import type { AiSettingsInput } from "./schema";
 
 export const defaultAiSettings = {
@@ -37,16 +36,14 @@ function getConfigDelegate(db: PrismaClient): AiProviderConfigDelegate {
   }
   return delegate;
 }
-export async function getAiSettings(db: PrismaClient) {
-  const user = await getOrCreateLocalUser(db);
-  const config = await getConfigDelegate(db).findUnique({ where: { userId: user.id } });
+export async function getAiSettings(db: PrismaClient, userId: string) {
+  const config = await getConfigDelegate(db).findUnique({ where: { userId } });
   return config ?? { ...defaultAiSettings, apiKey: null, updatedAt: null };
 }
 
-export async function saveAiSettings(db: PrismaClient, input: AiSettingsInput) {
-  const user = await getOrCreateLocalUser(db);
+export async function saveAiSettings(db: PrismaClient, userId: string, input: AiSettingsInput) {
   const delegate = getConfigDelegate(db);
-  const existing = await delegate.findUnique({ where: { userId: user.id } });
+  const existing = await delegate.findUnique({ where: { userId } });
   const baseUrl = input.baseUrl || (input.provider === "openai"
     ? "https://api.openai.com/v1"
     : input.provider === "lm-studio" ? "http://localhost:1234/v1" : "");
@@ -60,8 +57,8 @@ export async function saveAiSettings(db: PrismaClient, input: AiSettingsInput) {
   };
 
   return delegate.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, ...data, ...(existing?.apiKey ? { apiKey: existing.apiKey } : {}) },
+    where: { userId },
+    create: { userId, ...data, ...(existing?.apiKey ? { apiKey: existing.apiKey } : {}) },
     update: data,
   });
 }

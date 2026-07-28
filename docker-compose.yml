@@ -69,6 +69,7 @@ services:
       target: runner
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-novel_role}?schema=public
+      AUTH_BOOTSTRAP_TOKEN: ${AUTH_BOOTSTRAP_TOKEN:-}
       AI_PROVIDER: ${AI_PROVIDER:-openai-compatible}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-}
@@ -91,7 +92,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3000/api/projects',{signal:AbortSignal.timeout(4000)}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(4000)}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 5s
       retries: 10

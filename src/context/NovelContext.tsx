@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { ExtractionResult } from '@/types/novel';
+import { useAuth } from '@/context/AuthContext';
 
 export interface NovelData {
   id: string;
@@ -21,29 +22,38 @@ interface NovelContextType {
 
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'novel-manage-data';
+const STORAGE_KEY_PREFIX = 'novel-manage-data';
 
 export function NovelProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const storageKey = user ? `${STORAGE_KEY_PREFIX}:${user.id}` : null;
   const [novels, setNovels] = useState<NovelData[]>([]);
   const [currentNovelId, setCurrentNovelId] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
 
-  // Load from localStorage on mount
+  // Load the current account's browser-only legacy analyses. Tracking the key
+  // that has finished loading prevents one user's in-memory state from being
+  // written into another user's storage namespace during an account switch.
   useEffect(() => {
     let cancelled = false;
 
-    // Defer hydration until after the effect has committed. This keeps the
-    // server-rendered shell stable while avoiding a synchronous cascading
-    // render during the effect itself.
     queueMicrotask(() => {
       if (cancelled) return;
 
-      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!storageKey) {
+        setNovels([]);
+        setCurrentNovelId(null);
+        setLoadedStorageKey(null);
+        return;
+      }
+
+      let nextNovels: NovelData[] = [];
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         try {
           const parsed: unknown = JSON.parse(stored);
           if (Array.isArray(parsed)) {
-            const validNovels = parsed.filter((novel): novel is NovelData => (
+            nextNovels = parsed.filter((novel): novel is NovelData => (
               typeof novel === 'object' && novel !== null &&
               typeof novel.id === 'string' &&
               typeof novel.name === 'string' &&
@@ -51,31 +61,28 @@ export function NovelProvider({ children }: { children: ReactNode }) {
               typeof novel.result === 'object' && novel.result !== null &&
               Array.isArray((novel as NovelData).result.characters)
             ));
-            setNovels(validNovels);
-            if (validNovels.length > 0) {
-              // Default to the most recent one or the first one
-              setCurrentNovelId(validNovels[0].id);
-            }
           }
         } catch (e) {
           console.error("Failed to load novels from storage", e);
         }
       }
 
-      setIsInitialized(true);
+      setNovels(nextNovels);
+      setCurrentNovelId(nextNovels[0]?.id ?? null);
+      setLoadedStorageKey(storageKey);
     });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey]);
 
   // Save to localStorage whenever novels change
   useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(novels));
+    if (storageKey && loadedStorageKey === storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(novels));
     }
-  }, [novels, isInitialized]);
+  }, [loadedStorageKey, novels, storageKey]);
 
   const addNovel = (name: string, result: ExtractionResult): string => {
     const newId = crypto.randomUUID();

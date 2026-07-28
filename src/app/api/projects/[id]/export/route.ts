@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import { exportProject } from "@/server/modules/project/transfer-service";
 
@@ -10,10 +11,12 @@ function safeFilename(title: string) {
   return `${cleaned || "novel-project"}.novel-role.json`;
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
-    const document = await exportProject(getDatabase(), id);
+    const document = await exportProject(getDatabase(), auth.user.id, id);
     if (!document) {
       return NextResponse.json({ code: "PROJECT_NOT_FOUND", error: "小说项目不存在。" }, { status: 404 });
     }

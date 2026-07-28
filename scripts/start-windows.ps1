@@ -29,6 +29,13 @@ if (-not (Test-Path (Join-Path $projectDir ".env"))) {
   Write-Host "已创建 .env；如需使用云端模型，请编辑其中的 AI_API_KEY。"
 }
 
+$bootstrapToken = node scripts/ensure-bootstrap-token.mjs .env
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($bootstrapToken)) {
+  throw "首次注册初始化口令生成失败。"
+}
+Write-Host "首次注册初始化口令：$bootstrapToken" -ForegroundColor Cyan
+Write-Host "请在首位账号注册页填写此口令；已有账号时可忽略。"
+
 Write-Host "正在生成 Prisma Client..." -ForegroundColor Yellow
 npm run db:generate
 

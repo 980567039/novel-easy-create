@@ -2,7 +2,9 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { LogoMark } from "@/components/LogoMark";
+import { apiFetch } from "@/lib/api-client";
 
 interface OnboardingAnswers {
   premise: string;
@@ -114,7 +116,7 @@ export default function NewProjectPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch("/api/projects", {
+      const response = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -149,7 +151,7 @@ export default function NewProjectPage() {
         </button>
 
         <div className="mb-8 flex items-start gap-4">
-          <div className="rounded-2xl bg-indigo-100 p-3 text-indigo-600"><BookOpen size={26} /></div>
+          <LogoMark className="h-[52px] w-[52px] shrink-0 drop-shadow-sm" title="小白作家" />
           <div>
             <p className="mb-1 text-sm font-semibold tracking-wide text-indigo-600">新建长篇小说</p>
             <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{currentStep.title}</h1>

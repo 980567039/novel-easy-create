@@ -23,10 +23,10 @@ export async function readJson(request: Request) {
   }
 }
 
-export async function handleGenerationStatus(chapterId: string, type: "SCENE_PLAN" | "DRAFT", jobId?: string, projectId?: string) {
+export async function handleGenerationStatus(userId: string, chapterId: string, type: "SCENE_PLAN" | "DRAFT", jobId?: string, projectId?: string) {
   try {
     const db = getDatabase();
-    const chapter = await getChapterDetail(db, chapterId, projectId);
+    const chapter = await getChapterDetail(db, userId, chapterId, projectId);
     if (!chapter) return NextResponse.json({ code: "CHAPTER_NOT_FOUND", error: "章节不存在。" }, { status: 404 });
     const job = await getChapterGenerationJob(db, chapterId, jobId, type);
     if (!job) return NextResponse.json({ job: null, status: "idle", progress: 0 });
@@ -37,7 +37,7 @@ export async function handleGenerationStatus(chapterId: string, type: "SCENE_PLA
   }
 }
 
-export async function handleGeneration(request: Request, chapterId: string, projectId: string | undefined, type: "SCENE_PLAN" | "DRAFT") {
+export async function handleGeneration(request: Request, userId: string, chapterId: string, projectId: string | undefined, type: "SCENE_PLAN" | "DRAFT") {
   const parsedBody = await readJson(request);
   if (parsedBody.error) return parsedBody.error;
   const parsed = GenerateChapterInputSchema.safeParse(parsedBody.value ?? {});
@@ -45,13 +45,13 @@ export async function handleGeneration(request: Request, chapterId: string, proj
 
   try {
     const db = getDatabase();
-    const chapter = await getChapterDetail(db, chapterId, projectId);
+    const chapter = await getChapterDetail(db, userId, chapterId, projectId);
     if (!chapter) return NextResponse.json({ code: "CHAPTER_NOT_FOUND", error: "章节不存在。" }, { status: 404 });
-    const job = await createChapterGenerationJob(db, { projectId: chapter.projectId, chapterPlanId: chapter.id, type, idempotencyKey: parsed.data.idempotencyKey });
+    const job = await createChapterGenerationJob(db, { userId, projectId: chapter.projectId, chapterPlanId: chapter.id, type, idempotencyKey: parsed.data.idempotencyKey });
     if (job.status === "SUCCEEDED") return NextResponse.json({ jobId: job.id, status: "succeeded", progress: job.progress, output: job.output }, { status: 200 });
     if (job.status === "RUNNING" || job.status === "QUEUED") {
       await db.generationJob.update({ where: { id: job.id }, data: { status: "RUNNING", progress: 10, startedAt: new Date() } });
-      const run = type === "SCENE_PLAN" ? generateScenePlan(db, chapter.id, job.id, parsed.data) : generateDraft(db, chapter.id, job.id, parsed.data);
+      const run = type === "SCENE_PLAN" ? generateScenePlan(db, userId, chapter.id, job.id, parsed.data) : generateDraft(db, userId, chapter.id, job.id, parsed.data);
       void run.catch(async (error) => {
         console.error(`[chapter/${type.toLowerCase()}] generation failed`, error);
         try {

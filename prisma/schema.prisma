@@ -110,19 +110,49 @@ enum UserDecisionStatus {
 }
 
 model User {
-  id          String      @id @default(uuid())
-  email       String      @unique
-  displayName String?
-  role        UserRole    @default(OWNER)
-  preferences Json?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  email             String      @unique
+  normalizedEmail   String?
+  passwordHash      String?
+  authInitializedAt DateTime?
+  displayName       String?
+  role              UserRole    @default(OWNER)
+  preferences       Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   projects  NovelProject[]   @relation("ProjectOwner")
   revisions ChapterRevision[] @relation("RevisionAuthor")
   jobs      GenerationJob[]  @relation("JobRequester")
   decisions UserDecision[]   @relation("DecisionActor")
   aiProviderConfig AiProviderConfig?
+  sessions          Session[]
+  claimedBootstrap  AuthBootstrap? @relation("BootstrapClaimer")
+}
+
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, revokedAt])
+}
+
+model AuthBootstrap {
+  id          String   @id
+  claimedById String?  @unique
+  claimedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  claimedBy User? @relation("BootstrapClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
 }
 
 model AiProviderConfig {
