@@ -1,0 +1,540 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ContentSource {
+  USER
+  AI
+  SYSTEM
+  IMPORT
+}
+
+enum SuggestionStatus {
+  SUGGESTED
+  CONFIRMED
+  REJECTED
+  ARCHIVED
+}
+
+enum UserRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum RevisionStatus {
+  DRAFT
+  REVIEWING
+  FINAL
+  ARCHIVED
+}
+
+enum PlotThreadType {
+  MAIN
+  SUBPLOT
+  CHARACTER_ARC
+  FORESHADOWING
+  MYSTERY
+}
+
+enum PlotThreadStatus {
+  PLANNED
+  ACTIVE
+  RESOLVED
+  ABANDONED
+}
+
+enum QualityIssueType {
+  CONSISTENCY
+  CAUSALITY
+  CHARACTER
+  PACING
+  STYLE
+  LANGUAGE
+  CONTINUITY
+  CANON_CONFLICT
+}
+
+enum QualitySeverity {
+  INFO
+  WARNING
+  ERROR
+  BLOCKER
+}
+
+enum QualityIssueStatus {
+  OPEN
+  ACCEPTED
+  FIXED
+  IGNORED
+}
+
+enum GenerationJobType {
+  STORY_BIBLE
+  OUTLINE
+  SCENE_PLAN
+  DRAFT
+  QUALITY_CHECK
+  REPAIR
+  FACT_EXTRACTION
+  REPLAN
+  IMPORT
+  EXPORT
+}
+
+enum GenerationJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum UserDecisionStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
+model User {
+  id          String      @id @default(uuid())
+  email       String      @unique
+  displayName String?
+  role        UserRole    @default(OWNER)
+  preferences Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  projects  NovelProject[]   @relation("ProjectOwner")
+  revisions ChapterRevision[] @relation("RevisionAuthor")
+  jobs      GenerationJob[]  @relation("JobRequester")
+  decisions UserDecision[]   @relation("DecisionActor")
+  aiProviderConfig AiProviderConfig?
+}
+
+model AiProviderConfig {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  provider  String   @default("openai-compatible")
+  baseUrl   String   @default("https://api.openai.com/v1")
+  model     String   @default("gpt-4o-mini")
+  apiKey    String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([provider, enabled])
+}
+
+model NovelProject {
+  id              String        @id @default(uuid())
+  ownerId         String
+  title           String
+  logline         String?
+  genre           String?
+  targetWordCount Int?
+  targetChapterCount Int?
+  status          ProjectStatus @default(DRAFT)
+  version         Int           @default(1)
+  createdBy       ContentSource @default(USER)
+  lifecycleStatus SuggestionStatus @default(CONFIRMED)
+  locked          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  owner          User             @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  storyBible     StoryBible?
+  characters     Character[]      @relation("ProjectCharacters")
+  relations      CharacterRelation[]
+  worldRules     WorldRule[]
+  volumes        VolumePlan[]
+  chapters       ChapterPlan[]
+  revisions      ChapterRevision[]
+  canonFacts     CanonFact[]
+  storyEvents    StoryEvent[]
+  snapshots      StateSnapshot[]
+  plotThreads    PlotThread[]
+  qualityIssues  QualityIssue[]
+  generationJobs GenerationJob[]
+  decisions      UserDecision[]
+
+  @@index([ownerId, status])
+}
+
+model StoryBible {
+  id              String           @id @default(uuid())
+  projectId       String           @unique
+  premise         String?
+  theme           String?
+  tone            String?
+  pointOfView     String?
+  styleGuide      Json?
+  forbiddenExpressions Json?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model Character {
+  id              String           @id @default(uuid())
+  projectId       String
+  name            String
+  aliases         Json?
+  role            String?
+  summary         String?
+  desire          String?
+  fear            String?
+  secret          String?
+  personality     String?
+  abilities       Json?
+  speechPattern   String?
+  arc             String?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project     NovelProject      @relation("ProjectCharacters", fields: [projectId], references: [id], onDelete: Cascade)
+  relationsFrom CharacterRelation[] @relation("RelationFrom")
+  relationsTo   CharacterRelation[] @relation("RelationTo")
+
+  @@index([projectId, name])
+}
+
+model CharacterRelation {
+  id              String           @id @default(uuid())
+  projectId       String
+  fromCharacterId String
+  toCharacterId   String
+  relationType    String
+  description     String?
+  strength        Int?
+  publicState     String?
+  trueState       String?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project       NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromCharacter Character   @relation("RelationFrom", fields: [fromCharacterId], references: [id], onDelete: Cascade)
+  toCharacter   Character   @relation("RelationTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCharacterId, toCharacterId, relationType])
+  @@index([projectId, relationType])
+}
+
+model WorldRule {
+  id              String           @id @default(uuid())
+  projectId       String
+  name            String
+  content         String
+  scope           String?
+  exceptions      String?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+}
+
+model VolumePlan {
+  id              String           @id @default(uuid())
+  projectId       String
+  number          Int
+  title           String?
+  summary         String?
+  goal            String?
+  climax          String?
+  endingCondition String?
+  plannedWordCount Int?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project  NovelProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapters ChapterPlan[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+}
+
+model ChapterPlan {
+  id              String           @id @default(uuid())
+  projectId       String
+  volumeId        String?
+  number          Int
+  title           String?
+  summary         String?
+  objective       String?
+  conflict        String?
+  expectedOutcome String?
+  requiredChanges Json?
+  plannedWordCount Int?
+  isFinale        Boolean          @default(false)
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project        NovelProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  volume         VolumePlan?    @relation(fields: [volumeId], references: [id], onDelete: SetNull)
+  revisions      ChapterRevision[]
+  snapshots      StateSnapshot[]
+  generationJobs  GenerationJob[]
+  decisions      UserDecision[]
+
+  @@unique([projectId, number])
+  @@index([volumeId, number])
+  @@index([projectId, status])
+}
+
+model ChapterRevision {
+  id              String         @id @default(uuid())
+  projectId       String
+  chapterPlanId   String
+  authorId        String?
+  parentRevisionId String?
+  revisionNumber  Int
+  content         String
+  wordCount       Int?
+  summary         String?
+  source          ContentSource  @default(AI)
+  createdBy       ContentSource  @default(AI)
+  status          RevisionStatus @default(DRAFT)
+  version         Int            @default(1)
+  locked          Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  project       NovelProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapterPlan   ChapterPlan       @relation(fields: [chapterPlanId], references: [id], onDelete: Cascade)
+  author        User?             @relation("RevisionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parentRevision ChapterRevision? @relation("RevisionLineage", fields: [parentRevisionId], references: [id], onDelete: SetNull)
+  childRevisions ChapterRevision[] @relation("RevisionLineage")
+  qualityIssues QualityIssue[]
+  generationJobs GenerationJob[]
+
+  @@unique([chapterPlanId, revisionNumber])
+  @@index([projectId, status])
+}
+
+model CanonFact {
+  id              String           @id @default(uuid())
+  projectId       String
+  subjectType     String
+  subjectId       String?
+  attribute       String
+  value           Json
+  validFromChapter Int?
+  validToChapter  Int?
+  confidence      Float?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  sourceExcerpt   String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, subjectType, subjectId])
+  @@index([projectId, attribute])
+}
+
+model StoryEvent {
+  id              String           @id @default(uuid())
+  projectId       String
+  title           String
+  description     String
+  storyTime       String?
+  chapterNumber   Int?
+  location        String?
+  participantIds  Json?
+  cause           String?
+  consequence     String?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  status          SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, chapterNumber])
+  @@index([projectId, status])
+}
+
+model StateSnapshot {
+  id            String           @id @default(uuid())
+  projectId     String
+  chapterPlanId String?
+  chapterNumber Int?
+  state         Json
+  delta         Json?
+  version       Int              @default(1)
+  createdBy     ContentSource    @default(AI)
+  status        SuggestionStatus @default(SUGGESTED)
+  locked        Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  project     NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapterPlan ChapterPlan? @relation(fields: [chapterPlanId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, chapterNumber])
+}
+
+model PlotThread {
+  id              String           @id @default(uuid())
+  projectId       String
+  title           String
+  description     String?
+  type            PlotThreadType
+  status          PlotThreadStatus @default(PLANNED)
+  startChapter    Int?
+  plannedPayoffChapter Int?
+  actualPayoffChapter  Int?
+  endingCondition String?
+  version         Int              @default(1)
+  createdBy       ContentSource    @default(AI)
+  suggestionStatus SuggestionStatus @default(SUGGESTED)
+  locked          Boolean          @default(false)
+  sourceChapterId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, type, status])
+}
+
+model QualityIssue {
+  id                String             @id @default(uuid())
+  projectId         String
+  chapterRevisionId String?
+  type              QualityIssueType
+  severity          QualitySeverity
+  status            QualityIssueStatus @default(OPEN)
+  message           String
+  evidence          String?
+  conflictingFactId String?
+  suggestion        String?
+  autoFixAllowed    Boolean            @default(false)
+  version           Int                @default(1)
+  createdBy         ContentSource      @default(AI)
+  locked            Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  project         NovelProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapterRevision ChapterRevision?  @relation(fields: [chapterRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, severity, status])
+  @@index([chapterRevisionId, status])
+}
+
+model GenerationJob {
+  id               String             @id @default(uuid())
+  projectId        String
+  requesterId      String?
+  chapterPlanId    String?
+  chapterRevisionId String?
+  type             GenerationJobType
+  status           GenerationJobStatus @default(QUEUED)
+  createdBy        ContentSource       @default(SYSTEM)
+  provider         String?
+  model            String?
+  promptVersion    String?
+  inputHash        String?
+  output           Json?
+  error            String?
+  progress         Int                @default(0)
+  tokensInput      Int?
+  tokensOutput     Int?
+  costMicros       Int?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  idempotencyKey   String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  project         NovelProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester       User?             @relation("JobRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  chapterPlan     ChapterPlan?      @relation(fields: [chapterPlanId], references: [id], onDelete: SetNull)
+  chapterRevision ChapterRevision?  @relation(fields: [chapterRevisionId], references: [id], onDelete: SetNull)
+  decisions       UserDecision[]
+
+  @@unique([projectId, idempotencyKey])
+  @@index([projectId, status, createdAt])
+  @@index([chapterPlanId, type])
+}
+
+model UserDecision {
+  id               String             @id @default(uuid())
+  projectId        String
+  userId           String?
+  chapterPlanId    String?
+  generationJobId  String?
+  decisionType     String
+  question         String
+  selectedOption   Json?
+  alternatives     Json?
+  rationale        String?
+  impact           Json?
+  status           UserDecisionStatus @default(PROPOSED)
+  createdBy        ContentSource      @default(USER)
+  version          Int                @default(1)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  project       NovelProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User?         @relation("DecisionActor", fields: [userId], references: [id], onDelete: SetNull)
+  chapterPlan   ChapterPlan?  @relation(fields: [chapterPlanId], references: [id], onDelete: SetNull)
+  generationJob GenerationJob? @relation(fields: [generationJobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status, createdAt])
+}

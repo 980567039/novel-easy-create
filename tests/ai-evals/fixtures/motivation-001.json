@@ -1,0 +1,18 @@
+{
+  "id": "motivation-001",
+  "title": "核心动机无因果地反转",
+  "category": "motivation",
+  "canon": {
+    "facts": [
+      { "subject": "白芷", "predicate": "desire", "value": "不惜一切代价救回弟弟", "validFromChapter": 1, "locked": true },
+      { "subject": "白芷", "predicate": "arc", "value": "尚未经历足以改变目标的事件", "validFromChapter": 12, "locked": true }
+    ]
+  },
+  "chapter": { "number": 12, "text": "白芷没有遭遇任何新事件，却突然决定亲手杀死弟弟，并说自己从未想过救他。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["causality", "character"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["白芷", "突然决定", "从未想过救他"]
+  }
+}

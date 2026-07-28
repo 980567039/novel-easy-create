@@ -1,0 +1,18 @@
+{
+  "id": "item-001",
+  "title": "已损坏物品再次完好出现",
+  "category": "item",
+  "canon": {
+    "facts": [
+      { "subject": "星纹匕首", "predicate": "condition", "value": "第9章被折断且无法修复", "validFromChapter": 9, "locked": true },
+      { "subject": "星纹匕首", "predicate": "holder", "value": "林砚持有断刃", "validFromChapter": 9, "locked": true }
+    ]
+  },
+  "chapter": { "number": 10, "text": "林砚拔出完好无损的星纹匕首，刀身在月光下没有一丝裂痕。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["canon"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["星纹匕首", "完好无损"]
+  }
+}

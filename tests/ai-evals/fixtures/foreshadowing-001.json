@@ -1,0 +1,18 @@
+{
+  "id": "foreshadowing-001",
+  "title": "伏笔在计划前被提前揭晓",
+  "category": "foreshadowing",
+  "canon": {
+    "facts": [
+      { "subject": "铜铃的真实主人", "predicate": "plannedReveal", "value": "第30章", "validFromChapter": 3, "locked": true },
+      { "subject": "铜铃", "predicate": "knownInformation", "value": "截至第14章读者只知道它会在月圆时响", "validFromChapter": 3, "locked": true }
+    ]
+  },
+  "chapter": { "number": 14, "text": "老钟楼中，旁白直接揭晓铜铃的真实主人就是失踪的皇后，伏笔尚未推进到第30章。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["foreshadowing", "canon"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["铜铃的真实主人", "第30章", "直接揭晓"]
+  }
+}

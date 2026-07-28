@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { 
   Copy, 
   Image as ImageIcon, 
@@ -96,7 +97,15 @@ const CharacterCard: React.FC<{ character: Character }> = ({ character }) => {
         <div className="mt-6 flex flex-col gap-4">
           {imageUrl && (
             <div className="relative aspect-square w-full rounded-xl overflow-hidden shadow-inner border border-slate-100">
-              <img src={imageUrl} alt={character.name} className="w-full h-full object-cover" />
+              <Image
+                src={imageUrl}
+                alt={character.name}
+                fill
+                unoptimized
+                sizes="(max-width: 768px) 100vw, 33vw"
+                loader={({ src }) => src}
+                className="object-cover"
+              />
             </div>
           )}
           

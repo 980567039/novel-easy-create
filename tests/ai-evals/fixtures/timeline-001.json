@@ -1,0 +1,18 @@
+{
+  "id": "timeline-001",
+  "title": "事件顺序倒置",
+  "category": "timeline",
+  "canon": {
+    "facts": [
+      { "subject": "黑潮爆发", "predicate": "chapter", "value": "第20章", "validFromChapter": 20, "locked": true },
+      { "subject": "陆沉受伤", "predicate": "chapter", "value": "第18章", "validFromChapter": 18, "locked": true }
+    ]
+  },
+  "chapter": { "number": 18, "text": "第18章的回忆中，黑潮已经爆发，陆沉才在废墟里受伤。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["timeline"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["黑潮", "第18章", "已经爆发"]
+  }
+}

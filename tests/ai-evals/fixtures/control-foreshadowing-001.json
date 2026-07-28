@@ -1,0 +1,18 @@
+{
+  "id": "control-foreshadowing-001",
+  "title": "伏笔按计划保留（负例控制）",
+  "category": "control",
+  "canon": {
+    "facts": [
+      { "subject": "铜铃的真实主人", "predicate": "plannedReveal", "value": "第30章", "validFromChapter": 3, "locked": true },
+      { "subject": "铜铃", "predicate": "knownInformation", "value": "截至第14章只知道它会在月圆时响", "validFromChapter": 3, "locked": true }
+    ]
+  },
+  "chapter": { "number": 14, "text": "铜铃在月光下轻响，林砚记下异常，却不知道它真正属于谁。" },
+  "expected": {
+    "hardContradiction": false,
+    "issueTypes": [],
+    "severityAtLeast": null,
+    "evidenceTokens": []
+  }
+}

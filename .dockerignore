@@ -1,0 +1,15 @@
+.git
+.gitignore
+.DS_Store
+.next
+node_modules
+tsconfig.tsbuildinfo
+npm-debug.log*
+
+# Never bake local credentials into an image. Runtime configuration is passed
+# explicitly by Compose instead.
+.env
+.env.*
+
+docs
+tests

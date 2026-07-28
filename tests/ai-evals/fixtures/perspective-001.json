@@ -1,0 +1,17 @@
+{
+  "id": "perspective-001",
+  "title": "叙事视角和人称漂移",
+  "category": "perspective",
+  "canon": {
+    "facts": [
+      { "subject": "narrator", "predicate": "pointOfView", "value": "第三人称限知：只进入林砚的内心", "validFromChapter": 1, "locked": true }
+    ]
+  },
+  "chapter": { "number": 5, "text": "林砚握紧剑柄。他很害怕。与此同时，反派在城外想起了自己的童年，并清楚知道林砚已经埋伏。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["style", "canon"],
+    "severityAtLeast": "medium",
+    "evidenceTokens": ["反派", "想起了自己的童年", "清楚知道林砚"]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "repetition-001",
+  "title": "连续章节重复同一冲突",
+  "category": "repetition",
+  "canon": {
+    "facts": [
+      { "subject": "章节计划", "predicate": "chapter-8-result", "value": "林砚已经拒绝城主并离开", "validFromChapter": 8, "locked": true },
+      { "subject": "章节计划", "predicate": "chapter-9-requiredChange", "value": "调查铜铃来源，不能再次谈判城主", "validFromChapter": 9, "locked": true }
+    ]
+  },
+  "chapter": { "number": 9, "text": "城主再次召见林砚。林砚再次拒绝城主。两人再次争论是否效忠城主，结尾没有调查铜铃来源。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["pacing", "causality"],
+    "severityAtLeast": "medium",
+    "evidenceTokens": ["再次召见", "再次拒绝", "没有调查铜铃来源"]
+  }
+}

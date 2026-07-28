@@ -1,0 +1,17 @@
+{
+  "id": "character-state-001",
+  "title": "已确认死亡的人物重新行动",
+  "category": "character-state",
+  "canon": {
+    "facts": [
+      { "subject": "顾遥", "predicate": "status", "value": "第12章末确认死亡", "validFromChapter": 12, "locked": true }
+    ]
+  },
+  "chapter": { "number": 13, "text": "第13章，顾遥在城门外等候队伍，并亲手打开了铁门。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["character", "canon"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["顾遥", "打开了铁门"]
+  }
+}

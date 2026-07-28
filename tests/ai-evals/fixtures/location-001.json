@@ -1,0 +1,18 @@
+{
+  "id": "location-001",
+  "title": "无过渡地点瞬移",
+  "category": "location",
+  "canon": {
+    "facts": [
+      { "subject": "沈璃", "predicate": "location", "value": "北境哨站", "validFromChapter": 7, "locked": true },
+      { "subject": "沈璃", "predicate": "travel", "value": "尚未离开北境哨站", "validFromChapter": 7, "locked": true }
+    ]
+  },
+  "chapter": { "number": 8, "text": "没有经过任何行军或传送描写，第8章第一句就写沈璃出现在三百里外的南港。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["location", "causality"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["沈璃", "南港", "没有经过任何行军"]
+  }
+}
