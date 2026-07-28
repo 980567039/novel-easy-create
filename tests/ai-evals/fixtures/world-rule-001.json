@@ -1,0 +1,18 @@
+{
+  "id": "world-rule-001",
+  "title": "能力违反锁定世界规则",
+  "category": "world-rule",
+  "canon": {
+    "facts": [
+      { "subject": "镜界", "predicate": "rule", "value": "活人不能穿过镜面，只有死者灵魂可以进入", "validFromChapter": 1, "locked": true },
+      { "subject": "宁川", "predicate": "status", "value": "活人", "validFromChapter": 1, "locked": true }
+    ]
+  },
+  "chapter": { "number": 11, "text": "活着的宁川一步穿过镜面进入镜界，没有契约、死亡或例外规则。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["canon"],
+    "severityAtLeast": "critical",
+    "evidenceTokens": ["活着的宁川", "穿过镜面", "没有契约"]
+  }
+}

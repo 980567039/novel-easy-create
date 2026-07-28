@@ -1,0 +1,69 @@
+{
+  "canonical": {
+    "ending": "主角打破镜界规则，带着弟弟回到故乡。",
+    "volumes": [
+      {
+        "title": "镜门",
+        "goal": "找到进入镜界的方法",
+        "climax": "主角第一次穿过镜门",
+        "endingCondition": "镜界入口被确认",
+        "chapters": [
+          {
+            "order": 1,
+            "title": "雨夜来客",
+            "objective": "让主角接触铜铃线索",
+            "conflict": "城主试图没收铜铃",
+            "result": "主角保住铜铃但被通缉",
+            "requiredChange": "主角从旁观者变成调查者",
+            "estimatedWords": 3000
+          }
+        ]
+      }
+    ]
+  },
+  "aliases": {
+    "conclusion": "主角打破镜界规则，带着弟弟回到故乡。",
+    "volumePlans": [
+      {
+        "name": "镜门",
+        "objective": { "text": "找到进入镜界的方法" },
+        "turningPoint": "主角第一次穿过镜门",
+        "resolution": "镜界入口被确认",
+        "chapterPlans": [
+          {
+            "number": "1",
+            "name": "雨夜来客",
+            "goal": "让主角接触铜铃线索",
+            "obstacle": "城主试图没收铜铃",
+            "outcome": "主角保住铜铃但被通缉",
+            "stateChange": "主角从旁观者变成调查者",
+            "wordCount": "3200"
+          }
+        ]
+      }
+    ]
+  },
+  "invalid": { "volumes": [] },
+  "progressEvents": [
+    { "status": "QUEUED", "progress": 0, "message": "任务已排队" },
+    { "status": "RUNNING", "progress": 25, "message": "正在生成分卷和章节" },
+    { "status": "RUNNING", "progress": 100, "message": "正在校验结构化输出" },
+    { "status": "SUCCEEDED", "progress": 100, "message": "大纲已保存" }
+  ],
+  "detailSummary": {
+    "projectId": "project-eval",
+    "title": "镜界回声",
+    "ending": "主角打破镜界规则，带着弟弟回到故乡。",
+    "volumes": 2,
+    "chapters": 8,
+    "volumeCount": 2,
+    "chapterCount": 8,
+    "generatedAt": "2026-07-28T10:00:00.000Z",
+    "generatedModel": "eval-model",
+    "model": "eval-model",
+    "volumeDetails": [
+      { "number": 1, "chapterCount": 4 },
+      { "number": 2, "chapterCount": 4 }
+    ]
+  }
+}

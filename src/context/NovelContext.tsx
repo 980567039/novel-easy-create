@@ -30,20 +30,44 @@ export function NovelProvider({ children }: { children: ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setNovels(parsed);
-        if (parsed.length > 0) {
-          // Default to the most recent one or the first one
-          setCurrentNovelId(parsed[0].id);
+    let cancelled = false;
+
+    // Defer hydration until after the effect has committed. This keeps the
+    // server-rendered shell stable while avoiding a synchronous cascading
+    // render during the effect itself.
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed: unknown = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            const validNovels = parsed.filter((novel): novel is NovelData => (
+              typeof novel === 'object' && novel !== null &&
+              typeof novel.id === 'string' &&
+              typeof novel.name === 'string' &&
+              typeof novel.createdAt === 'number' &&
+              typeof novel.result === 'object' && novel.result !== null &&
+              Array.isArray((novel as NovelData).result.characters)
+            ));
+            setNovels(validNovels);
+            if (validNovels.length > 0) {
+              // Default to the most recent one or the first one
+              setCurrentNovelId(validNovels[0].id);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to load novels from storage", e);
         }
-      } catch (e) {
-        console.error("Failed to load novels from storage", e);
       }
-    }
-    setIsInitialized(true);
+
+      setIsInitialized(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Save to localStorage whenever novels change

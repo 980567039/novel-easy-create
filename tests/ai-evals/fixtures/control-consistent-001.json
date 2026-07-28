@@ -1,0 +1,18 @@
+{
+  "id": "control-consistent-001",
+  "title": "状态、地点和物品均保持一致（负例控制）",
+  "category": "control",
+  "canon": {
+    "facts": [
+      { "subject": "林砚", "predicate": "location", "value": "北境哨站", "validFromChapter": 7, "locked": true },
+      { "subject": "星纹匕首", "predicate": "condition", "value": "完好", "validFromChapter": 1, "locked": true }
+    ]
+  },
+  "chapter": { "number": 8, "text": "林砚仍在北境哨站。他检查完好无损的星纹匕首，准备等天亮后出发。" },
+  "expected": {
+    "hardContradiction": false,
+    "issueTypes": [],
+    "severityAtLeast": null,
+    "evidenceTokens": []
+  }
+}

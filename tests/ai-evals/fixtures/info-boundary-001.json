@@ -1,0 +1,18 @@
+{
+  "id": "info-boundary-001",
+  "title": "角色知道不应知道的真相",
+  "category": "information-boundary",
+  "canon": {
+    "facts": [
+      { "subject": "周棠", "predicate": "knowledge", "value": "不知道密道入口，只有谢临见过地图", "validFromChapter": 1, "locked": true },
+      { "subject": "谢临", "predicate": "knowledge", "value": "知道密道入口", "validFromChapter": 6, "locked": true }
+    ]
+  },
+  "chapter": { "number": 7, "text": "周棠没有和谢临交谈，却准确说出了密道入口在西墙第三块砖后。" },
+  "expected": {
+    "hardContradiction": true,
+    "issueTypes": ["canon", "character"],
+    "severityAtLeast": "high",
+    "evidenceTokens": ["周棠", "密道入口", "没有和谢临交谈"]
+  }
+}
