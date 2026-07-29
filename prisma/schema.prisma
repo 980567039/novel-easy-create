@@ -202,8 +202,22 @@ model NovelProject {
   qualityIssues  QualityIssue[]
   generationJobs GenerationJob[]
   decisions      UserDecision[]
+  publicReaderShare PublicReaderShare?
 
   @@index([ownerId, status])
+}
+
+model PublicReaderShare {
+  id        String    @id @default(uuid())
+  projectId String    @unique
+  tokenHash String    @unique
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([revokedAt])
 }
 
 model StoryBible {

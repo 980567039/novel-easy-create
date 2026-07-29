@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -170,17 +171,11 @@ try {
   const projectId = LEGACY_PROJECT_IDS[0];
   const chapterId = retained.projects[0].chapters[0].id;
 
-  const publicReader = await request(`/api/projects/${projectId}/reader`);
-  assert.equal(publicReader.body.project.id, projectId);
-  assert.equal(publicReader.body.project.title, "极品AI刁民");
-  assert.equal(publicReader.body.stats.readableChapterCount, 1);
-  assert.equal(publicReader.body.chapters[0].id, chapterId);
-
-  const publicChapter = await request(`/api/projects/${projectId}/reader?chapterId=${chapterId}`);
-  assert.equal(publicChapter.body.chapter.id, chapterId);
-  assert.equal(publicChapter.body.chapter.content, "必须原样保留的正文。");
-
-  await request(`/api/projects/${projectId}/reader`, { cookie: cookieB });
+  await request(`/api/projects/${projectId}/reader`, { expected: 401 });
+  await request(`/api/projects/${projectId}/reader?chapterId=${chapterId}`, { expected: 401 });
+  const privateReader = await request(`/api/projects/${projectId}/reader`, { cookie: cookieA });
+  assert.equal(privateReader.body.project.id, projectId);
+  assert.equal(privateReader.body.chapters[0].id, chapterId);
 
   await request(`/api/chapters/${chapterId}/finalize?projectId=${projectId}`, {
     method: "POST",
@@ -191,9 +186,102 @@ try {
   const finalizedChapter = chaptersAfterFinalize.body.chapters.find((chapter) => chapter.id === chapterId);
   assert.equal(finalizedChapter.status, "CONFIRMED");
   assert.equal(finalizedChapter.latestRevision.status, "FINAL");
+  await request(`/api/chapters/${chapterId}/drafts?projectId=${projectId}`, {
+    method: "PATCH",
+    cookie: cookieA,
+    expected: 201,
+    body: JSON.stringify({ content: "只应作者可见的新草稿。" }),
+  });
+
+  for (const method of ["GET", "POST", "PUT", "DELETE"]) {
+    await request(`/api/projects/${projectId}/share`, {
+      method,
+      cookie: cookieB,
+      expected: 404,
+      ...(method === "PUT" ? { body: JSON.stringify({ enabled: true }) } : {}),
+    });
+  }
+
+  const initialShare = await request(`/api/projects/${projectId}/share`, { cookie: cookieA });
+  assert.deepEqual(initialShare.body.share, {
+    enabled: false,
+    createdAt: null,
+    updatedAt: null,
+    revokedAt: null,
+  });
+  assert(!("token" in initialShare.body));
+  assert(!("tokenHash" in initialShare.body.share));
+
+  const createdShare = await request(`/api/projects/${projectId}/share`, {
+    method: "POST",
+    cookie: cookieA,
+    expected: 201,
+  });
+  const firstShareToken = createdShare.body.token;
+  assert.equal(typeof firstShareToken, "string");
+  assert.match(firstShareToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(createdShare.body.share.enabled, true);
+  const storedShare = await db.publicReaderShare.findUniqueOrThrow({ where: { projectId } });
+  assert.notEqual(storedShare.tokenHash, firstShareToken);
+  assert.match(storedShare.tokenHash, /^[a-f0-9]{64}$/);
+  assert.equal(storedShare.tokenHash, createHash("sha256").update(firstShareToken).digest("hex"));
+
+  const managedShare = await request(`/api/projects/${projectId}/share`, { cookie: cookieA });
+  assert.equal(managedShare.body.share.enabled, true);
+  assert(!("token" in managedShare.body));
+  assert(!("tokenHash" in managedShare.body.share));
+
+  const publicReader = await request(`/api/public/reader/${firstShareToken}`);
+  assert.deepEqual(Object.keys(publicReader.body.project).sort(), ["genre", "title"]);
+  assert.equal(publicReader.body.project.title, "极品AI刁民");
+  assert.equal(publicReader.body.stats.readableChapterCount, 1);
+  assert.equal(publicReader.body.chapters[0].id, chapterId);
+  assert.deepEqual(Object.keys(publicReader.body.chapters[0]).sort(), [
+    "hasContent", "id", "isFinale", "number", "title", "volumeNumber", "volumeTitle", "wordCount",
+  ]);
+  const publicPayload = JSON.stringify(publicReader.body);
+  for (const forbiddenField of ["ownerId", "projectId", "tokenHash", "apiKey", "summary", "objective", "conflict", "revisionStatus", "status", "updatedAt"]) {
+    assert(!publicPayload.includes(`\"${forbiddenField}\"`), `public reader leaked ${forbiddenField}`);
+  }
+
+  const publicChapter = await request(`/api/public/reader/${firstShareToken}?chapterId=${chapterId}`);
+  assert.equal(publicChapter.body.chapter.id, chapterId);
+  assert.equal(publicChapter.body.chapter.content, "必须原样保留的正文。");
+  assert(!JSON.stringify(publicChapter.body).includes("只应作者可见的新草稿。"));
+  assert(!("revisionStatus" in publicChapter.body.chapter));
+  assert(!("updatedAt" in publicChapter.body.chapter));
+
+  const rotatedShare = await request(`/api/projects/${projectId}/share`, {
+    method: "PUT",
+    cookie: cookieA,
+    body: JSON.stringify({ enabled: true }),
+  });
+  const rotatedShareToken = rotatedShare.body.token;
+  assert.match(rotatedShareToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(rotatedShareToken, firstShareToken);
+  await request(`/api/public/reader/${firstShareToken}`, { expected: 404 });
+  await request(`/api/public/reader/${rotatedShareToken}`);
+
+  const invalidPublicReader = await request("/api/public/reader/not-a-valid-token", { expected: 404 });
+  const closedShare = await request(`/api/projects/${projectId}/share`, {
+    method: "DELETE",
+    cookie: cookieA,
+  });
+  assert.equal(closedShare.body.share.enabled, false);
+  const closedPublicReader = await request(`/api/public/reader/${rotatedShareToken}`, { expected: 404 });
+  assert.deepEqual(closedPublicReader.body, invalidPublicReader.body);
+  assert.equal(await db.publicReaderShare.count({ where: { projectId } }), 0);
+
+  const disabledAgain = await request(`/api/projects/${projectId}/share`, {
+    method: "PUT",
+    cookie: cookieA,
+    body: JSON.stringify({ enabled: false }),
+  });
+  assert.equal(disabledAgain.body.share.enabled, false);
 
   const forbiddenReads = [
     `/api/projects/${projectId}/export`,
+    `/api/projects/${projectId}/reader`,
     `/api/projects/${projectId}/outline`,
     `/api/projects/${projectId}/outline?jobId=${retained.projects[0].chapters[0].generationJobs[0].id}`,
     `/api/projects/${projectId}/chapters`,

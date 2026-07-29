@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, FileText, GitBranch, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
+import { ShareManager } from "@/components/ShareManager";
 
 interface ProjectSummary {
   id: string;
@@ -578,6 +579,8 @@ export default function ProjectDashboardPage() {
                   ? "故事圣经已进入待确认状态，点击上方“生成分层大纲”继续。"
                   : "先生成故事圣经，系统才能继续生成大纲，并在后续章节中追踪人物状态、伏笔和收束风险。"}</p>
         </section>
+
+        <ShareManager projectId={params.id} />
       </div>
     </main>
   );

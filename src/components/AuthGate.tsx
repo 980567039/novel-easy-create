@@ -8,10 +8,10 @@ import { useAuth } from "@/context/AuthContext";
 import { currentPath, safeNextPath } from "@/lib/api-client";
 
 const PUBLIC_PATHS = new Set(["/login", "/register"]);
-const PUBLIC_READER_PATH = /^\/projects\/[^/]+\/read\/?$/;
+const PUBLIC_SHARE_PATH = /^\/share\/[^/]+\/?$/;
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname) || PUBLIC_READER_PATH.test(pathname);
+  return PUBLIC_PATHS.has(pathname) || PUBLIC_SHARE_PATH.test(pathname);
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
