@@ -62,7 +62,7 @@ function Field({
   const className = "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100";
   return (
     <label className="block space-y-2">
-      <span className="flex items-baseline justify-between gap-3 text-sm font-semibold text-slate-800">
+      <span className="flex flex-col items-start gap-1 text-sm font-semibold text-slate-800 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <span>{label}</span>
         {hint && <span className="text-xs font-normal text-slate-400">{hint}</span>}
       </span>
@@ -140,21 +140,21 @@ export default function NewProjectPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8 text-slate-900 sm:px-8">
+    <main className="min-h-[100dvh] bg-slate-50 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))] text-slate-900 sm:pb-[max(2rem,env(safe-area-inset-bottom))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] sm:pt-[max(2rem,env(safe-area-inset-top))]">
       <div className="mx-auto max-w-3xl">
         <button
           type="button"
           onClick={() => router.push("/")}
-          className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-indigo-600"
+          className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-indigo-600 sm:mb-8"
         >
           <ArrowLeft size={16} /> 返回首页
         </button>
 
-        <div className="mb-8 flex items-start gap-4">
-          <LogoMark className="h-[52px] w-[52px] shrink-0 drop-shadow-sm" title="小白作家" />
-          <div>
+        <div className="mb-6 flex items-start gap-3 sm:mb-8 sm:gap-4">
+          <LogoMark className="h-11 w-11 shrink-0 drop-shadow-sm sm:h-[52px] sm:w-[52px]" title="小白作家" />
+          <div className="min-w-0">
             <p className="mb-1 text-sm font-semibold tracking-wide text-indigo-600">新建长篇小说</p>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{currentStep.title}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl">{currentStep.title}</h1>
             <p className="mt-2 text-slate-500">{currentStep.description}</p>
           </div>
         </div>
@@ -168,7 +168,7 @@ export default function NewProjectPage() {
           ))}
         </div>
 
-        <form onSubmit={submit} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+        <form onSubmit={submit} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-9">
           {step === 0 && (
             <div className="space-y-6">
               <Field
@@ -260,19 +260,19 @@ export default function NewProjectPage() {
 
           {error && <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-700">{error}</p>}
 
-          <div className="mt-8 flex items-center justify-between gap-4 border-t border-slate-100 pt-6">
+          <div className="mt-8 flex items-center justify-between gap-2 border-t border-slate-100 pt-6 sm:gap-4">
             <button
               type="button"
               disabled={step === 0 || submitting}
               onClick={() => setStep((current) => Math.max(0, current - 1))}
-              className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 disabled:invisible"
+              className="min-h-11 rounded-xl px-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 disabled:invisible sm:px-4"
             >
               上一步
             </button>
             <button
               type="submit"
               disabled={!canContinue || submitting}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
             >
               {submitting ? <Loader2 size={17} className="animate-spin" /> : step === stepCopy.length - 1 ? <Sparkles size={17} /> : <ArrowRight size={17} />}
               {submitting ? "正在创建..." : step === stepCopy.length - 1 ? "创建我的小说" : "继续"}

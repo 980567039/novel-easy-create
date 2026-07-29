@@ -422,12 +422,12 @@ export default function ProjectDashboardPage() {
   };
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center text-slate-500">正在加载项目...</main>;
+    return <main className="flex min-h-[100dvh] items-center justify-center text-slate-500">正在加载项目...</main>;
   }
 
   if (!project) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-slate-600">{error ?? "项目不存在，或者数据库尚未连接。"}</p>
         <button type="button" onClick={() => router.push("/projects/new")} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">新建项目</button>
       </main>
@@ -450,18 +450,18 @@ export default function ProjectDashboardPage() {
   const healthProgress = project.storyBible?.styleGuide?.generatedAt ? 20 + Math.round(outlineReadiness * 20) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8 text-slate-900 sm:px-8">
+    <main className="min-h-[100dvh] bg-slate-50 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] text-slate-900 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-6xl">
-        <button type="button" onClick={() => router.push("/")} className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600">
+        <button type="button" onClick={() => router.push("/")} className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 sm:mb-8">
           <ArrowLeft size={16} /> 返回首页
         </button>
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row">
+          <div className="min-w-0">
             <p className="mb-2 text-sm font-semibold text-indigo-600">小说工作台</p>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{project.title}</h1>
-            <p className="mt-2 max-w-2xl leading-relaxed text-slate-500">{project.storyBible?.premise ?? "故事圣经尚未生成，下一步先把故事方向整理清楚。"}</p>
+            <h1 className="break-words text-2xl font-extrabold tracking-tight sm:text-4xl">{project.title}</h1>
+            <p className="mt-2 max-w-2xl break-words leading-relaxed text-slate-500">{project.storyBible?.premise ?? "故事圣经尚未生成，下一步先把故事方向整理清楚。"}</p>
           </div>
-          <button type="button" onClick={() => void generateStoryBible()} disabled={generatingBible} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60">
+          <button type="button" onClick={() => void generateStoryBible()} disabled={generatingBible} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto sm:shrink-0">
             <Sparkles size={17} /> {generatingBible ? "生成中..." : project.storyBible?.styleGuide?.generatedAt ? "重新生成故事圣经" : "生成故事圣经"}
           </button>
         </div>
@@ -470,16 +470,16 @@ export default function ProjectDashboardPage() {
         {error && <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-700">{error}</div>}
 
         {outlineJob && (
-          <section className="mb-6 rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm" aria-live="polite">
+          <section className="mb-6 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-5" aria-live="polite">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><Clock3 size={19} /></div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-indigo-600">{outlineIsExpanding ? "正在扩展完整章节大纲" : "分层大纲生成进度"}</p>
-                  <p className="mt-1 font-bold text-slate-900">{phaseLabel(outlineJob.phase, outlineJob.status)}</p>
+                  <p className="mt-1 break-words font-bold text-slate-900">{phaseLabel(outlineJob.phase, outlineJob.status)}</p>
                 </div>
               </div>
-              <div className="text-right text-sm text-slate-500">
+              <div className="w-full text-left text-sm text-slate-500 sm:w-auto sm:text-right">
                 <p className="font-bold text-slate-800">{outlineJob.phase === "running" || outlineJob.phase === "generating" ? "约 " : ""}{Math.round(outlineProgress)}%</p>
                 <p>已用时 {formatElapsed(outlineJob.startedAt ?? outlineJob.createdAt, clock)}</p>
               </div>
@@ -493,14 +493,14 @@ export default function ProjectDashboardPage() {
                 已生成 {visibleChapterCount}{targetChapterCount ? ` / ${targetChapterCount}` : ""} 章
               </p>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-slate-500">{outlineJob.message ?? "模型正在整理全书、分卷和章节关系，内容越长所需时间越久。"}</p>
+            <p className="mt-3 break-words text-sm leading-relaxed text-slate-500">{outlineJob.message ?? "模型正在整理全书、分卷和章节关系，内容越长所需时间越久。"}</p>
             {outlinePollingWarning && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">{outlinePollingWarning}</p>}
             {isActiveJob(outlineJob) && <p className="mt-2 text-xs text-slate-400">进度会自动刷新；即使暂时停在某个百分比，模型仍可能正在生成较长内容。</p>}
           </section>
         )}
 
         <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-5 flex items-center justify-between">
               <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><BookOpen size={20} /></div>
               {project.storyBible?.styleGuide?.generatedAt && <CheckCircle2 size={20} className="text-emerald-500" />}
@@ -509,7 +509,7 @@ export default function ProjectDashboardPage() {
             <p className="mt-2 text-sm leading-relaxed text-slate-500">{project.storyBible?.styleGuide?.generatedAt ? "AI 已整理完成，等待你确认" : "把人物、世界和文风整理成一份可靠资料"}</p>
           </div>
 
-          <div className="rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm ring-1 ring-indigo-100">
+          <div className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm ring-1 ring-indigo-100 sm:p-5">
             <div className="mb-5 flex items-center justify-between">
               <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><GitBranch size={20} /></div>
               {outlineIsComplete && !outlineJobIsActive && <CheckCircle2 size={20} className="text-emerald-500" />}
@@ -526,7 +526,7 @@ export default function ProjectDashboardPage() {
                       ? `正在生成首版骨架：已生成 ${visibleChapterCount}${targetChapterCount ? ` / ${targetChapterCount}` : ""} 章`
                       : "全书、分卷、章节和场景计划"}
             </p>
-            <button type="button" onClick={() => void generateOutline()} disabled={generatingOutline || outlineJobIsActive || !project.storyBible?.styleGuide?.generatedAt} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+            <button type="button" onClick={() => void generateOutline()} disabled={generatingOutline || outlineJobIsActive || !project.storyBible?.styleGuide?.generatedAt} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto">
               <Sparkles size={15} /> {outlineJobIsActive || generatingOutline
                 ? outlineIsExpanding ? "扩展中..." : "生成中..."
                 : outlineIsComplete
@@ -539,7 +539,7 @@ export default function ProjectDashboardPage() {
             {!project.storyBible?.styleGuide?.generatedAt && <p className="mt-2 text-xs text-slate-400">请先完成故事圣经</p>}
           </div>
 
-          <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${outlineIsComplete ? "" : "opacity-70"}`}>
+          <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${outlineIsComplete ? "" : "opacity-70"}`}>
             <div className="mb-5 flex items-center justify-between">
               <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><FileText size={20} /></div>
               {outlineIsComplete && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">即将开始</span>}
@@ -548,22 +548,22 @@ export default function ProjectDashboardPage() {
             <p className="mt-2 text-sm leading-relaxed text-slate-500">{outlineIsComplete ? "完整大纲已就绪，可以从第一章场景表开始" : hasOutlineContent ? `当前只有 ${outlineChapterCount}${targetChapterCount ? ` / ${targetChapterCount}` : ""} 章，扩展完成后再进入逐章创作` : "先完成分层大纲，再逐章写到完结"}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {outlineIsComplete && (
-                <Link href={`/projects/${params.id}/chapters`} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                <Link href={`/projects/${params.id}/chapters`} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                   进入章节工作台 <ArrowRight size={15} />
                 </Link>
               )}
-              <Link href={`/projects/${params.id}/read`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+              <Link href={`/projects/${params.id}/read`} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
                 <BookOpen size={15} /> 预览小说
               </Link>
             </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-500">完结健康度</p>
-              <p className="mt-1 text-2xl font-extrabold text-slate-900">{outlineIsComplete ? "完整章节大纲已完成" : hasOutlineContent ? "已有首版骨架，尚未完整" : project.storyBible?.styleGuide?.generatedAt ? "故事基础已完成" : "等待生成故事圣经"}</p>
+              <p className="mt-1 break-words text-xl font-extrabold text-slate-900 sm:text-2xl">{outlineIsComplete ? "完整章节大纲已完成" : hasOutlineContent ? "已有首版骨架，尚未完整" : project.storyBible?.styleGuide?.generatedAt ? "故事基础已完成" : "等待生成故事圣经"}</p>
             </div>
             <p className="text-sm text-slate-500">目标：{project.targetChapterCount ?? "—"} 章 · {project.targetWordCount ?? "—"} 字</p>
           </div>

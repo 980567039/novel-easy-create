@@ -278,7 +278,7 @@ export default function OutlinePage() {
   }, [outlinePollingStopped, params.id, pollingOutlineJobId]);
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center text-slate-500">正在加载大纲...</main>;
+    return <main className="flex min-h-[100dvh] items-center justify-center text-slate-500">正在加载大纲...</main>;
   }
 
   const volumes = outline?.volumeDetails ?? outline?.volumePlans ?? [];
@@ -293,13 +293,13 @@ export default function OutlinePage() {
   const activeJobScope = outlineJobIsActive ? jobScopeLabel(outline?.activeJob) : null;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8 text-slate-900 sm:px-8">
+    <main className="min-h-[100dvh] bg-slate-50 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] text-slate-900 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <Link href={`/projects/${params.id}`} className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 sm:mb-8 sm:gap-4">
+          <Link href={`/projects/${params.id}`} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600">
             <ArrowLeft size={16} /> 返回项目工作台
           </Link>
-          <button type="button" onClick={() => void loadOutline(true)} disabled={refreshing} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-white hover:text-indigo-600 disabled:opacity-50">
+          <button type="button" onClick={() => void loadOutline(true)} disabled={refreshing} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-white hover:text-indigo-600 disabled:opacity-50">
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> 刷新大纲
           </button>
         </div>
@@ -308,7 +308,7 @@ export default function OutlinePage() {
         {outlinePollingWarning && <div className="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700" aria-live="polite">{outlinePollingWarning}</div>}
 
         {!error && outline && volumes.length === 0 && (
-          <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+          <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center shadow-sm sm:p-12">
             <BookOpen className="mx-auto text-slate-400" size={30} />
             <h1 className="mt-4 text-xl font-bold">{outlineJobIsActive ? "正在生成首版骨架" : "大纲还没有生成"}</h1>
             <p className="mt-2 text-sm text-slate-500">{outlineJobIsActive ? `当前已生成 ${visibleGeneratedChapterCount}${validTargetChapterCount ? ` / ${validTargetChapterCount}` : ""} 章，页面会自动刷新。` : "返回工作台，点击“生成分层大纲”开始。"}</p>
@@ -326,25 +326,25 @@ export default function OutlinePage() {
           <>
             <header className="mb-8">
               <p className="mb-2 text-sm font-semibold text-indigo-600">{outlineIsExpanding ? "分层大纲 · 正在扩展" : outlineIsComplete ? "分层大纲 · 完整章节版" : "分层大纲 · 首版骨架"}</p>
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{outline.title ?? "未命名小说"}</h1>
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end sm:gap-4">
+                <div className="min-w-0">
+                  <h1 className="break-words text-2xl font-extrabold tracking-tight sm:text-4xl">{outline.title ?? "未命名小说"}</h1>
                   <p className="mt-2 text-sm text-slate-500">{outline.volumeCount ?? volumes.length} 卷 · 已生成 {generatedChapterCount}{validTargetChapterCount ? ` / ${validTargetChapterCount}` : ""} 章</p>
                 </div>
-                <div className="text-right text-xs text-slate-400">
+                <div className="break-all text-left text-xs text-slate-400 sm:shrink-0 sm:text-right">
                   <p className="inline-flex items-center gap-1"><Clock3 size={13} /> {formatDate(outline.generatedAt)}</p>
                   {outline.generatedModel && <p className="mt-1">模型：{outline.generatedModel}</p>}
                 </div>
               </div>
             </header>
 
-            <section className={`mb-8 rounded-2xl border p-5 ${outlineJobIsActive ? "border-indigo-200 bg-indigo-50/70" : outlineIsComplete ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70"}`} aria-live="polite">
+            <section className={`mb-6 rounded-2xl border p-4 sm:mb-8 sm:p-5 ${outlineJobIsActive ? "border-indigo-200 bg-indigo-50/70" : outlineIsComplete ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70"}`} aria-live="polite">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <p className={`text-sm font-bold ${outlineJobIsActive ? "text-indigo-700" : outlineIsComplete ? "text-emerald-700" : "text-amber-700"}`}>
                     {outlineIsExpanding ? `正在扩展到 ${validTargetChapterCount ?? "目标"} 章` : outlineJobIsActive ? "正在生成首版骨架" : outlineIsComplete ? "完整章节大纲已完成" : "当前是首版骨架，尚未形成完整长篇大纲"}
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 break-words text-sm leading-6 text-slate-600">
                     {outlineJobIsActive
                       ? `生成进度：${visibleGeneratedChapterCount}${validTargetChapterCount ? ` / ${validTargetChapterCount}` : ""} 章${activeJobScope ? `；${activeJobScope}` : ""}`
                       : outlineIsComplete
@@ -352,7 +352,7 @@ export default function OutlinePage() {
                         : `当前可查看 ${generatedChapterCount}${validTargetChapterCount ? ` / ${validTargetChapterCount}` : ""} 章，请返回工作台继续扩展。`}
                   </p>
                 </div>
-                {!outlineIsComplete && !outlineJobIsActive && <Link href={`/projects/${params.id}`} className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">返回工作台继续扩展</Link>}
+                {!outlineIsComplete && !outlineJobIsActive && <Link href={`/projects/${params.id}`} className="inline-flex min-h-11 items-center rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">返回工作台继续扩展</Link>}
               </div>
               {outlineJobIsActive && (
                 <>
@@ -362,7 +362,7 @@ export default function OutlinePage() {
               )}
             </section>
 
-            <section className="mb-8 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-6">
+            <section className="mb-6 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:mb-8 sm:p-6">
               <div className="flex items-center gap-2 text-sm font-bold text-indigo-700"><Sparkles size={16} /> 全书结局方向</div>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{display(outline.ending)}</p>
             </section>
@@ -370,18 +370,18 @@ export default function OutlinePage() {
             <section className="space-y-5">
               {volumes.map((volume) => (
                 <details key={volume.number} open className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-                  <summary className="cursor-pointer list-none px-6 py-5 [&::-webkit-details-marker]:hidden">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
+                  <summary className="cursor-pointer list-none px-4 py-4 sm:px-6 sm:py-5 [&::-webkit-details-marker]:hidden">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500">第 {volume.number} 卷</p>
-                        <h2 className="mt-1 text-xl font-extrabold">{display(volume.title, `第${volume.number}卷`)}</h2>
-                        <p className="mt-2 text-sm text-slate-500">{volume.chapters?.length ?? 0} 章 · {display(volume.goal, "本卷目标待确认")}</p>
+                        <h2 className="mt-1 break-words text-xl font-extrabold">{display(volume.title, `第${volume.number}卷`)}</h2>
+                        <p className="mt-2 break-words text-sm text-slate-500">{volume.chapters?.length ?? 0} 章 · {display(volume.goal, "本卷目标待确认")}</p>
                       </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500 group-open:bg-indigo-50 group-open:text-indigo-600">展开 / 收起</span>
+                      <span className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500 group-open:bg-indigo-50 group-open:text-indigo-600">展开 / 收起</span>
                     </div>
                   </summary>
 
-                  <div className="border-t border-slate-100 px-6 py-5">
+                  <div className="border-t border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
                     <div className="grid gap-4 text-sm md:grid-cols-3">
                       <div><p className="font-semibold text-slate-500">本卷高潮</p><p className="mt-1 leading-6 text-slate-700">{display(volume.climax)}</p></div>
                       <div><p className="font-semibold text-slate-500">结束条件</p><p className="mt-1 leading-6 text-slate-700">{display(volume.endingCondition)}</p></div>
@@ -390,11 +390,11 @@ export default function OutlinePage() {
 
                     <div className="mt-6 space-y-3">
                       {(volume.chapters ?? []).map((chapter) => (
-                        <article key={chapter.number} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <article key={chapter.number} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-xs font-semibold text-indigo-500">第 {chapter.number} 章{chapter.isFinale ? " · 全书终章" : ""}</p>
-                              <h3 className="mt-1 font-bold text-slate-900">{display(chapter.title, `第${chapter.number}章`)}</h3>
+                              <h3 className="mt-1 break-words font-bold text-slate-900">{display(chapter.title, `第${chapter.number}章`)}</h3>
                             </div>
                             {chapter.plannedWordCount && <span className="text-xs text-slate-400">约 {chapter.plannedWordCount} 字</span>}
                           </div>
@@ -403,7 +403,7 @@ export default function OutlinePage() {
                             <div><p className="font-semibold text-slate-500">主要冲突</p><p className="mt-1 leading-6 text-slate-700">{display(chapter.conflict)}</p></div>
                             <div><p className="font-semibold text-slate-500">预期结果</p><p className="mt-1 leading-6 text-slate-700">{display(chapter.expectedOutcome ?? chapter.result ?? chapter.summary)}</p></div>
                           </div>
-                          <p className="mt-3 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-500">状态变化：{display(chapter.requiredChanges)}</p>
+                          <p className="mt-3 break-words border-t border-slate-200 pt-3 text-xs leading-5 text-slate-500">状态变化：{display(chapter.requiredChanges)}</p>
                         </article>
                       ))}
                     </div>

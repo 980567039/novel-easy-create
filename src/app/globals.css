@@ -5,6 +5,13 @@
   --foreground: #0f172a;
 }
 
+html {
+  min-width: 0;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0f172a;
@@ -13,6 +20,8 @@
 }
 
 body {
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family:
@@ -24,6 +33,33 @@ body {
     Oxygen,
     Ubuntu,
     sans-serif;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    /* iOS zooms focused form controls whose computed font size is below 16px. */
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 640px) {
+  details.desktop-expanded > summary {
+    display: none;
+  }
+
+  details.desktop-expanded:not([open]) > :not(summary) {
+    display: block;
+  }
 }
 
 /* 渐变文字效果 */

@@ -65,16 +65,16 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-5 py-10 text-slate-900">
+    <main className="flex min-h-[100dvh] items-start justify-center bg-slate-50 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))] text-slate-900 sm:items-center sm:pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))] sm:pt-[max(2.5rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center sm:mb-8">
           <Link href="/login" className="inline-flex items-center gap-3">
-            <LogoMark className="h-14 w-14 drop-shadow-sm" title="小白作家" />
-            <span className="text-left"><span className="block text-sm font-semibold text-indigo-600">小白作家</span><span className="block text-xl font-extrabold">把故事一直写到完结</span></span>
+            <LogoMark className="h-12 w-12 drop-shadow-sm sm:h-14 sm:w-14" title="小白作家" />
+            <span className="text-left"><span className="block text-sm font-semibold text-indigo-600">小白作家</span><span className="block text-lg font-extrabold sm:text-xl">把故事一直写到完结</span></span>
           </Link>
         </div>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/50 sm:p-8">
           <h1 className="text-2xl font-extrabold tracking-tight">欢迎回来</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">登录后继续你的小说、大纲和章节创作。</p>
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-500">还没有账号？<Link href={`/register?next=${encodeURIComponent(authLinkNext)}`} className="ml-1 font-semibold text-indigo-600 hover:text-indigo-700">注册成为作者</Link></p>
+          <p className="mt-4 flex min-h-11 items-center justify-center text-center text-sm text-slate-500 sm:mt-6">还没有账号？<Link href={`/register?next=${encodeURIComponent(authLinkNext)}`} className="inline-flex min-h-11 items-center pl-1 font-semibold text-indigo-600 hover:text-indigo-700">注册成为作者</Link></p>
         </section>
       </div>
     </main>

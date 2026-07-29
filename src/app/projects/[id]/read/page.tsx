@@ -495,7 +495,7 @@ export default function NovelReaderPage() {
         </div>
 
         {settingsOpen && (
-          <section className={`absolute right-3 top-[calc(100%+8px)] w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border p-4 shadow-2xl sm:right-6 ${colors.panel}`}>
+          <section className={`absolute right-3 top-[calc(100%+8px)] max-h-[calc(100dvh-5.5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto overscroll-contain rounded-2xl border p-4 shadow-2xl sm:right-6 ${colors.panel}`}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">阅读设置</h2>
               <button type="button" aria-label="关闭设置" onClick={() => setSettingsOpen(false)} className={`rounded-lg p-2 ${colors.hover}`}>
@@ -550,7 +550,7 @@ export default function NovelReaderPage() {
         onScroll={updateScrollProgress}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth"
       >
-        <article className={`mx-auto min-h-full w-full max-w-[800px] px-5 py-10 transition-colors sm:my-8 sm:min-h-[calc(100%-4rem)] sm:rounded-2xl sm:px-16 sm:py-16 sm:shadow-xl lg:px-20 ${colors.article}`}>
+        <article className={`mx-auto min-h-full w-full max-w-[800px] px-4 py-8 transition-colors sm:my-8 sm:min-h-[calc(100%-4rem)] sm:rounded-2xl sm:px-16 sm:py-16 sm:shadow-xl lg:px-20 ${colors.article}`}>
           {loadingChapter ? (
             <div className={`flex min-h-[55vh] items-center justify-center ${colors.muted}`}>
               <LoaderCircle className="mr-2 h-5 w-5 animate-spin" />正在加载正文…

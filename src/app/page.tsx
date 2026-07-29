@@ -299,36 +299,36 @@ export default function Home() {
   return (
     <>
     <main
-      className="min-h-screen bg-slate-50 px-5 py-8 text-slate-900 sm:px-8"
+      className="min-h-[100dvh] bg-slate-50 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))] text-slate-900 sm:pb-[max(2rem,env(safe-area-inset-bottom))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] sm:pt-[max(2rem,env(safe-area-inset-top))]"
       aria-hidden={importConflict !== null || deleteTarget !== null ? true : undefined}
       inert={importConflict !== null || deleteTarget !== null ? true : undefined}
     >
       <div className="mx-auto max-w-6xl">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <LogoMark className="h-[52px] w-[52px] shrink-0 drop-shadow-sm" title="小白作家" />
-            <div>
+        <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto">
+            <LogoMark className="h-11 w-11 shrink-0 drop-shadow-sm sm:h-[52px] sm:w-[52px]" title="小白作家" />
+            <div className="min-w-0">
               <p className="text-sm font-semibold tracking-wide text-indigo-600">小白作家</p>
-              <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">你的长篇小说工作台</h1>
+              <h1 className="text-xl font-extrabold tracking-tight sm:text-3xl">你的长篇小说工作台</h1>
             </div>
           </div>
-          <nav className="flex flex-wrap items-center justify-end gap-2">
-            <Link href="/settings/ai" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-white hover:text-indigo-600">
+          <nav className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+            <Link href="/settings/ai" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-sm font-semibold text-slate-500 transition hover:bg-white hover:text-indigo-600 sm:px-3">
               <Settings size={17} /> AI 设置
             </Link>
-            <Link href="/projects/new" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+            <Link href="/projects/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 sm:px-4">
               <Plus size={17} /> 新建小说
             </Link>
             <UserMenu />
           </nav>
         </header>
 
-        <section className="mt-10 overflow-hidden rounded-3xl bg-slate-900 px-6 py-8 text-white shadow-xl sm:px-10 sm:py-10">
+        <section className="mt-8 overflow-hidden rounded-3xl bg-slate-900 px-5 py-7 text-white shadow-xl sm:mt-10 sm:px-10 sm:py-10">
           <div className="max-w-2xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-indigo-200">
               <Sparkles size={14} /> 从一个想法，写到故事完结
             </div>
-            <h2 className="text-3xl font-extrabold leading-tight sm:text-4xl">AI 负责记住全书，<br />你负责做出关键选择。</h2>
+            <h2 className="text-2xl font-extrabold leading-tight sm:text-4xl">AI 负责记住全书，<br />你负责做出关键选择。</h2>
             <p className="mt-4 max-w-xl leading-relaxed text-slate-300">用故事圣经、大纲和章节状态管理长篇创作，让每一章都有作用，让伏笔有地方回家。</p>
             <Link href="/projects/new" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-indigo-50">
               <Plus size={17} /> 开始创建第一本小说
@@ -337,17 +337,17 @@ export default function Home() {
         </section>
 
         <section className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className={`h-2.5 w-2.5 rounded-full ${aiSettings?.enabled ? "bg-emerald-500" : "bg-slate-300"}`} />
-            <div>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${aiSettings?.enabled ? "bg-emerald-500" : "bg-slate-300"}`} />
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">当前 AI 分析引擎</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">
+              <p className="mt-1 break-words text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">
                 {aiSettings ? `${providerLabel} · ${aiSettings.model}` : "正在读取模型设置..."}
                 {aiSettings && !aiSettings.apiKeyConfigured && aiSettings.provider === "openai" ? " · 尚未配置 API Key" : ""}
               </p>
             </div>
           </div>
-          <Link href="/settings/ai" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">更换模型设置 →</Link>
+          <Link href="/settings/ai" className="inline-flex min-h-11 w-full items-center text-sm font-semibold text-indigo-600 hover:text-indigo-700 sm:w-auto sm:shrink-0">更换模型设置 →</Link>
         </section>
 
         <section className="mt-10">
@@ -372,12 +372,12 @@ export default function Home() {
                 type="button"
                 onClick={() => importInputRef.current?.click()}
                 disabled={importing || importConflict !== null}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-wait disabled:opacity-60 sm:flex-none"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-wait disabled:opacity-60 sm:flex-none"
               >
                 {importing ? <LoaderCircle size={16} className="animate-spin" /> : <Upload size={16} />}
                 {importing ? "导入中..." : "导入项目"}
               </button>
-              <button type="button" onClick={() => void loadProjects()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white hover:text-indigo-600 disabled:cursor-wait disabled:opacity-60" title="刷新项目">
+              <button type="button" onClick={() => void loadProjects()} disabled={loading} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-400 hover:bg-white hover:text-indigo-600 disabled:cursor-wait disabled:opacity-60" title="刷新项目">
                 <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> 刷新
               </button>
             </div>
@@ -432,7 +432,7 @@ export default function Home() {
                           type="button"
                           onClick={() => void exportProject(project)}
                           disabled={exportingProjectId !== null || deleting}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-wait disabled:opacity-50 sm:px-3"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-wait disabled:opacity-50 sm:px-3"
                           aria-label={`导出项目《${project.title}》`}
                         >
                           {exporting ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}
@@ -442,7 +442,7 @@ export default function Home() {
                           type="button"
                           onClick={() => openDeleteDialog(project)}
                           disabled={deleting || exportingProjectId !== null}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-wait disabled:opacity-50 sm:px-3"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-wait disabled:opacity-50 sm:px-3"
                           aria-label={`删除项目《${project.title}》`}
                         >
                           <Trash2 size={15} /> 删除
@@ -459,13 +459,13 @@ export default function Home() {
     </main>
 
     {importConflict && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="presentation">
+      <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/55 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:items-center sm:p-4" role="presentation">
         <section
           role="dialog"
           aria-modal="true"
           aria-labelledby="import-conflict-title"
           aria-describedby="import-conflict-description"
-          className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-7"
+          className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><AlertCircle size={22} /></div>
           <h2 id="import-conflict-title" className="mt-4 text-xl font-extrabold text-slate-900">发现同名项目</h2>
@@ -481,13 +481,13 @@ export default function Home() {
             </p>
           )}
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={closeImportConflict} disabled={importing} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-50">取消</button>
+            <button type="button" onClick={closeImportConflict} disabled={importing} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-50">取消</button>
             <button
               ref={overwriteButtonRef}
               type="button"
               onClick={() => void importProject(importConflict.file, true)}
               disabled={importing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-bold text-white transition hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60"
             >
               {importing && <LoaderCircle size={16} className="animate-spin" />}
               {importing ? "正在覆盖..." : "确认覆盖导入"}
@@ -498,16 +498,16 @@ export default function Home() {
     )}
 
     {deleteTarget && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="presentation">
+      <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/55 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:items-center sm:p-4" role="presentation">
         <section
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-project-title"
           aria-describedby="delete-project-description"
-          className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-7"
+          className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-700"><Trash2 size={21} /></div>
-          <h2 id="delete-project-title" className="mt-4 text-xl font-extrabold text-slate-900">删除《{deleteTarget.title}》？</h2>
+          <h2 id="delete-project-title" className="mt-4 break-words text-xl font-extrabold text-slate-900 [overflow-wrap:anywhere]">删除《{deleteTarget.title}》？</h2>
           <p id="delete-project-description" className="mt-2 text-sm leading-relaxed text-slate-600">项目及其故事圣经、大纲和章节内容都将永久删除。请输入完整项目名以确认。</p>
           <form className="mt-5" onSubmit={(event) => { event.preventDefault(); void deleteProject(); }}>
             <label htmlFor="delete-project-confirmation" className="text-sm font-semibold text-slate-700">输入项目名：<span className="select-all text-slate-950">{deleteTarget.title}</span></label>
@@ -518,7 +518,7 @@ export default function Home() {
               onChange={(event) => { setDeleteConfirmation(event.target.value); setDeleteError(null); }}
               disabled={deleting}
               autoComplete="off"
-              className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:bg-slate-100"
+              className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:bg-slate-100 sm:text-sm"
               aria-invalid={deleteError ? true : undefined}
               aria-describedby={deleteError ? "delete-project-error" : undefined}
             />
@@ -528,11 +528,11 @@ export default function Home() {
               </p>
             )}
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" onClick={closeDeleteDialog} disabled={deleting} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-50">取消</button>
+              <button type="button" onClick={closeDeleteDialog} disabled={deleting} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-50">取消</button>
               <button
                 type="submit"
                 disabled={deleting || deleteConfirmation !== deleteTarget.title}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {deleting && <LoaderCircle size={16} className="animate-spin" />}
                 {deleting ? "正在删除..." : "永久删除项目"}

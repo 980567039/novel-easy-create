@@ -596,21 +596,21 @@ export default function ChaptersPage() {
     }
   };
 
-  if (loading) return <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">正在加载章节工作台...</main>;
+  if (loading) return <main className="flex min-h-[100dvh] items-center justify-center bg-slate-50 text-slate-500">正在加载章节工作台...</main>;
   if (error && !project) {
-    return <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center"><p className="text-slate-600">{error}</p><button type="button" onClick={() => router.push(`/projects/${projectId}`)} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">返回项目工作台</button></main>;
+    return <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center"><p className="text-slate-600">{error}</p><button type="button" onClick={() => router.push(`/projects/${projectId}`)} className="min-h-11 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">返回项目工作台</button></main>;
   }
   if (!project) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:px-8">
+    <main className="min-h-[100dvh] bg-slate-50 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] text-slate-900 sm:px-8 sm:py-6">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link href={`/projects/${projectId}`} className="rounded-lg p-2 text-slate-500 hover:bg-white hover:text-indigo-600" aria-label="返回项目工作台"><ArrowLeft size={18} /></Link>
-            <div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">章节工作台</p><h1 className="text-2xl font-extrabold tracking-tight">{project.title}</h1></div>
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <Link href={`/projects/${projectId}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white hover:text-indigo-600" aria-label="返回项目工作台"><ArrowLeft size={18} /></Link>
+            <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">章节工作台</p><h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">{project.title}</h1></div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500"><span>{chapters.length} 章计划</span><span className="h-4 w-px bg-slate-200" /><Link href={`/projects/${projectId}/read`} className="inline-flex items-center gap-1.5 font-semibold text-indigo-600 hover:text-indigo-700"><BookOpen size={15} />小说预览</Link><span className="h-4 w-px bg-slate-200" /><Link href={`/projects/${projectId}`} className="font-semibold text-indigo-600 hover:text-indigo-700">查看完结健康度</Link></div>
+          <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-sm sm:w-auto sm:flex-wrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"><span>{chapters.length} 章计划</span><span className="hidden h-4 w-px bg-slate-200 sm:block" /><Link href={`/projects/${projectId}/read`} className="inline-flex min-h-9 items-center gap-1.5 font-semibold text-indigo-600 hover:text-indigo-700"><BookOpen size={15} />小说预览</Link><span className="hidden h-4 w-px bg-slate-200 sm:block" /><Link href={`/projects/${projectId}`} className="inline-flex min-h-9 items-center font-semibold text-indigo-600 hover:text-indigo-700">完结健康度</Link></div>
         </header>
 
         {outlineFallback && <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><Clock3 size={16} />章节列表接口暂不可用，当前显示大纲中的章节计划；保存和生成仍会明确反馈结果。</div>}
@@ -618,7 +618,11 @@ export default function ChaptersPage() {
         {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
         {chapters.length > 0 && (
-          <section className="mb-5 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="batch-drafts-title">
+          <details className="desktop-expanded mb-4 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-5" open={batchRunning || batchStarting || batchCancelling || undefined}>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-900 sm:hidden [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2"><WandSparkles size={17} className="text-indigo-600" />批量生成正文</span>
+              <span className="text-xs font-semibold text-indigo-600">{batchRunning ? `${batchProgress}%` : `剩余 ${missingDraftCount} 章`} · 展开</span>
+            </summary>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -646,7 +650,7 @@ export default function ChaptersPage() {
                   type="button"
                   onClick={() => void startBatchDrafts()}
                   disabled={batchRunning || batchStarting || batchCancelling || batchChecking || missingDraftCount === 0 || busy === "draft"}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                 >
                   {(batchStarting || batchCancelling || batchChecking) ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   {batchStarting ? "正在启动..." : batchCancelling ? "终止中..." : batchChecking ? "读取任务..." : batchRunning ? "批量生成中" : "开始批量生成"}
@@ -720,30 +724,36 @@ export default function ChaptersPage() {
                 </div>
               )}
             </div>
-          </section>
+          </details>
         )}
 
         {chapters.length === 0 ? (
-          <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm"><FileText className="mx-auto text-slate-300" size={36} /><h2 className="mt-4 text-lg font-bold">还没有章节计划</h2><p className="mt-2 text-sm text-slate-500">返回项目工作台生成分层大纲后，就可以开始逐章创作。</p><Link href={`/projects/${projectId}`} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">返回项目工作台 <ChevronRight size={16} /></Link></section>
+          <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-7 text-center shadow-sm sm:p-12"><FileText className="mx-auto text-slate-300" size={36} /><h2 className="mt-4 text-lg font-bold">还没有章节计划</h2><p className="mt-2 text-sm text-slate-500">返回项目工作台生成分层大纲后，就可以开始逐章创作。</p><Link href={`/projects/${projectId}`} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">返回项目工作台 <ChevronRight size={16} /></Link></section>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="self-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-5">
+          <div className="grid gap-3 sm:gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <label className="block rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-500 shadow-sm lg:hidden">
+              当前章节
+              <select value={selectedChapter?.id ?? ""} onChange={(event) => selectChapter(event.target.value)} className="mt-1.5 block min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+                {chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>第 {chapter.number} 章 · {chapter.title}</option>)}
+              </select>
+            </label>
+            <aside className="hidden self-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-5 lg:block">
               <div className="px-3 pb-3 pt-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">写作进度</p><div className="mt-2 flex items-end justify-between"><span className="text-xl font-extrabold">{chapters.filter((chapter) => chapter.status === "FINAL" || chapter.revisionStatus === "FINAL").length}<span className="ml-1 text-sm font-medium text-slate-400">/ {chapters.length}</span></span><span className="text-xs text-slate-400">已定稿</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((chapters.filter((chapter) => chapter.status === "FINAL" || chapter.revisionStatus === "FINAL").length / chapters.length) * 100)}%` }} /></div></div>
               <div className="max-h-[calc(100vh-220px)] space-y-1 overflow-y-auto border-t border-slate-100 pt-3">
                 {chapters.map((chapter) => <button type="button" key={chapter.id} onClick={() => selectChapter(chapter.id)} className={`group w-full rounded-xl px-3 py-3 text-left transition ${selectedChapter?.id === chapter.id ? "bg-indigo-50 text-indigo-900 ring-1 ring-indigo-100" : "hover:bg-slate-50"}`}><div className="flex items-center gap-2"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${selectedChapter?.id === chapter.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>{chapter.number}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{chapter.title}</span>{chapter.status === "FINAL" && <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />}</div><p className="mt-1 truncate pl-8 text-xs text-slate-400">{statusLabel[chapter.status ?? ""] ?? "计划"}{chapter.plannedWordCount ? ` · ${chapter.plannedWordCount} 字` : ""}</p></button>)}
               </div>
             </aside>
 
-            {selectedChapter && <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-5 py-5 sm:px-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 text-2xl font-extrabold tracking-tight">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectedChapter.status === "FINAL" || selectedChapter.revisionStatus === "FINAL" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[selectedChapter.status === "FINAL" ? "FINAL" : selectedChapter.revisionStatus ?? selectedChapter.status ?? ""] ?? "草稿"}</span></div></div>
-              <div className="grid gap-6 px-5 py-6 sm:px-8 xl:grid-cols-[minmax(0,1fr)_300px]">
+            {selectedChapter && <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
+              <div className="border-b border-slate-100 px-4 py-4 sm:px-8 sm:py-5"><div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4"><div className="min-w-0"><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedChapter.status === "FINAL" || selectedChapter.revisionStatus === "FINAL" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[selectedChapter.status === "FINAL" ? "FINAL" : selectedChapter.revisionStatus ?? selectedChapter.status ?? ""] ?? "草稿"}</span></div></div>
+              <div className="grid gap-5 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="font-bold">正文编辑</h3>
                       <p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                       {content.trim() && (
                         <button
                           type="button"
@@ -753,13 +763,13 @@ export default function ChaptersPage() {
                             setNotice(null);
                           }}
                           disabled={busy !== null || batchRunning || batchCancelling}
-                          className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-50"
+                          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-50 sm:flex-none"
                         >
                           <Sparkles size={15} />
                           {busy === "rewrite" ? "重写中..." : "重写"}
                         </button>
                       )}
-                      <button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning || batchCancelling} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchCancelling ? "终止中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button>
+                      <button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning || batchCancelling} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50 sm:flex-none"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchCancelling ? "终止中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button>
                     </div>
                   </div>
                   {rewriteOpen && (
@@ -785,10 +795,32 @@ export default function ChaptersPage() {
                       </div>
                     </div>
                   )}
-                  <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[520px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-5 text-[15px] leading-8 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50" />
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="flex items-center gap-2"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div>
+                  <details className="group mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 xl:hidden">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-bold text-indigo-900 [&::-webkit-details-marker]:hidden">
+                      <span className="inline-flex items-center gap-2"><Sparkles size={15} />场景参考与写作提示</span>
+                      <ChevronRight size={16} className="shrink-0 transition group-open:rotate-90" />
+                    </summary>
+                    <div className="border-t border-indigo-100 px-4 py-4 text-sm">
+                      <div className="mb-3 flex justify-end">
+                        <button type="button" onClick={() => void generateScenePlan()} disabled={busy !== null} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 text-sm font-semibold text-indigo-600 disabled:opacity-50"><Sparkles size={14} />{busy === "scene" ? "生成中..." : scenePlan ? "重新生成场景表" : "生成场景表"}</button>
+                      </div>
+                      <dl className="space-y-3">
+                        <div><dt className="text-xs font-semibold text-indigo-500">本章目标</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.objective ?? "待补充"}</dd></div>
+                        <div><dt className="text-xs font-semibold text-indigo-500">主要冲突</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.conflict ?? "待补充"}</dd></div>
+                        <div><dt className="text-xs font-semibold text-indigo-500">结束变化</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.expectedOutcome ?? "待补充"}</dd></div>
+                      </dl>
+                      {scenePlan?.scenes && scenePlan.scenes.length > 0 && (
+                        <ol className="mt-4 space-y-3 border-t border-indigo-100 pt-3">
+                          {scenePlan.scenes.map((scene, index) => <li key={`${scene.title ?? "mobile-scene"}-${index}`} className="flex gap-2 text-xs leading-relaxed text-slate-600"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white font-semibold text-indigo-600">{scene.order ?? index + 1}</span><span><strong className="font-semibold text-slate-700">{scene.title ?? "场景"}</strong>{scene.objective ? <span className="mt-0.5 block">目标：{scene.objective}</span> : null}{scene.turningPoint ? <span className="mt-0.5 block">转折：{scene.turningPoint}</span> : null}</span></li>)}
+                        </ol>
+                      )}
+                      <p className="mt-4 rounded-lg bg-white/80 px-3 py-2 text-xs leading-5 text-indigo-800">每一场都应让人物、关系、信息或危险程度至少发生一项可追踪变化。</p>
+                    </div>
+                  </details>
+                  <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[55dvh] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-base leading-7 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:min-h-[520px] sm:p-5 sm:text-[15px] sm:leading-8" />
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div>
                 </div>
-                <aside className="space-y-4"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">场景表</h3><button type="button" onClick={() => void generateScenePlan()} disabled={busy !== null} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"><Sparkles size={14} />{busy === "scene" ? "生成中" : scenePlan ? "重新生成" : "生成"}</button></div><dl className="space-y-3 text-sm"><div><dt className="text-xs font-semibold text-slate-400">本章目标</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.objective ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">主要冲突</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.conflict ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">结束变化</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.expectedOutcome ?? "待补充"}</dd></div>{scenePlan?.chapterPromise && <div><dt className="text-xs font-semibold text-slate-400">读者期待</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.chapterPromise}</dd></div>}{scenePlan?.endingState && <div><dt className="text-xs font-semibold text-slate-400">结束状态</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.endingState}</dd></div>}</dl>{scenePlan?.scenes && scenePlan.scenes.length > 0 && <div className="mt-4 border-t border-slate-200 pt-3"><p className="mb-2 text-xs font-semibold text-slate-400">场景节拍</p><ol className="space-y-3">{scenePlan.scenes.map((scene, index) => <li key={`${scene.title ?? "scene"}-${index}`} className="flex gap-2 text-xs leading-relaxed text-slate-600"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white font-semibold text-indigo-600">{scene.order ?? index + 1}</span><span><strong className="font-semibold text-slate-700">{scene.title ?? "场景"}</strong>{scene.setting ? ` · ${scene.setting}` : ""}{scene.objective ? <span className="mt-0.5 block text-slate-500">目标：{scene.objective}</span> : null}{scene.turningPoint ? <span className="mt-0.5 block text-slate-500">转折：{scene.turningPoint}</span> : null}</span></li>)}</ol></div>}</div><div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm leading-relaxed text-indigo-900"><p className="font-bold">写作提示</p><p className="mt-2 text-indigo-700">每一场都应让人物、关系、信息或危险程度至少发生一项可追踪变化。</p></div></aside>
+                <aside className="hidden space-y-4 xl:block"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">场景表</h3><button type="button" onClick={() => void generateScenePlan()} disabled={busy !== null} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"><Sparkles size={14} />{busy === "scene" ? "生成中" : scenePlan ? "重新生成" : "生成"}</button></div><dl className="space-y-3 text-sm"><div><dt className="text-xs font-semibold text-slate-400">本章目标</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.objective ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">主要冲突</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.conflict ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">结束变化</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.expectedOutcome ?? "待补充"}</dd></div>{scenePlan?.chapterPromise && <div><dt className="text-xs font-semibold text-slate-400">读者期待</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.chapterPromise}</dd></div>}{scenePlan?.endingState && <div><dt className="text-xs font-semibold text-slate-400">结束状态</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.endingState}</dd></div>}</dl>{scenePlan?.scenes && scenePlan.scenes.length > 0 && <div className="mt-4 border-t border-slate-200 pt-3"><p className="mb-2 text-xs font-semibold text-slate-400">场景节拍</p><ol className="space-y-3">{scenePlan.scenes.map((scene, index) => <li key={`${scene.title ?? "scene"}-${index}`} className="flex gap-2 text-xs leading-relaxed text-slate-600"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white font-semibold text-indigo-600">{scene.order ?? index + 1}</span><span><strong className="font-semibold text-slate-700">{scene.title ?? "场景"}</strong>{scene.setting ? ` · ${scene.setting}` : ""}{scene.objective ? <span className="mt-0.5 block text-slate-500">目标：{scene.objective}</span> : null}{scene.turningPoint ? <span className="mt-0.5 block text-slate-500">转折：{scene.turningPoint}</span> : null}</span></li>)}</ol></div>}</div><div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm leading-relaxed text-indigo-900"><p className="font-bold">写作提示</p><p className="mt-2 text-indigo-700">每一场都应让人物、关系、信息或危险程度至少发生一项可追踪变化。</p></div></aside>
               </div>
             </section>}
           </div>
