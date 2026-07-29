@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Copy,
   FileText,
   LoaderCircle,
   Save,
@@ -156,6 +157,32 @@ function localDraftKey(projectId: string, chapterId: string) {
   return `novel-role:draft:${projectId}:${chapterId}`;
 }
 
+async function copyTextToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Public self-hosted instances may run over HTTP, where the modern
+      // Clipboard API is unavailable. Fall through to the legacy copy path.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.readOnly = true;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, value.length);
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("浏览器未允许复制，请检查剪贴板权限。");
+}
+
 async function pollJob(endpoint: string) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const response = await apiFetch(endpoint, { cache: "no-store" });
@@ -195,7 +222,9 @@ export default function ChaptersPage() {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchPollVersion, setBatchPollVersion] = useState(0);
   const [batchExpanded, setBatchExpanded] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<"title" | "content" | null>(null);
   const batchPollGenerationRef = useRef(0);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedChapter = useMemo(() => chapters.find((chapter) => chapter.id === selectedId) ?? chapters[0] ?? null, [chapters, selectedId]);
   const currentWordCount = wordCount(content);
@@ -342,9 +371,14 @@ export default function ChaptersPage() {
     setRevisionId(selectedChapter.latestRevision?.id ?? null);
     setRewriteOpen(false);
     setRewriteInstruction("");
+    setCopiedTarget(null);
     setNotice(null);
     setError(null);
   }, [projectId, selectedChapter]);
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!selectedChapter || typeof window === "undefined") return;
@@ -368,6 +402,21 @@ export default function ChaptersPage() {
   const saveLocalDraft = (value = content) => {
     if (!selectedChapter || typeof window === "undefined") return;
     window.localStorage.setItem(localDraftKey(projectId, selectedChapter.id), value);
+  };
+
+  const copyChapterText = async (target: "title" | "content", value: string) => {
+    if (!value.trim()) return;
+    setError(null);
+    try {
+      await copyTextToClipboard(value);
+      setCopiedTarget(target);
+      setNotice(target === "title" ? "章节标题已复制。" : "正文内容已复制。只复制当前编辑器中的内容。");
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = setTimeout(() => setCopiedTarget(null), 2_000);
+    } catch (copyError) {
+      setCopiedTarget(null);
+      setError(copyError instanceof Error ? copyError.message : "复制失败，请检查浏览器剪贴板权限。");
+    }
   };
 
   const startBatchDrafts = async () => {
@@ -770,7 +819,27 @@ export default function ChaptersPage() {
             </aside>
 
             {selectedChapter && <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
-              <div className="border-b border-slate-100 px-4 py-4 sm:px-8 sm:py-5"><div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4"><div className="min-w-0"><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${isFinalChapter(selectedChapter) ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[chapterDisplayStatus(selectedChapter)] ?? "草稿"}</span></div></div>
+              <div className="border-b border-slate-100 px-4 py-4 sm:px-8 sm:py-5">
+                <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <h2 className="min-w-0 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{selectedChapter.title}</h2>
+                      <button
+                        type="button"
+                        onClick={() => void copyChapterText("title", selectedChapter.title)}
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                        aria-label="复制章节标题"
+                      >
+                        {copiedTarget === "title" ? <Check size={15} /> : <Copy size={15} />}
+                        {copiedTarget === "title" ? "已复制" : "复制标题"}
+                      </button>
+                    </div>
+                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${isFinalChapter(selectedChapter) ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[chapterDisplayStatus(selectedChapter)] ?? "草稿"}</span>
+                </div>
+              </div>
               <div className="grid gap-5 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -779,6 +848,16 @@ export default function ChaptersPage() {
                       <p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p>
                     </div>
                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => void copyChapterText("content", content)}
+                        disabled={!content.trim()}
+                        className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 sm:flex-none"
+                        aria-label="复制正文内容"
+                      >
+                        {copiedTarget === "content" ? <Check size={15} /> : <Copy size={15} />}
+                        {copiedTarget === "content" ? "已复制" : "复制正文"}
+                      </button>
                       {content.trim() && (
                         <button
                           type="button"
