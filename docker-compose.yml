@@ -78,12 +78,19 @@ services:
       AI_WRITING_MODEL: ${AI_WRITING_MODEL:-}
       AI_CHECK_MODEL: ${AI_CHECK_MODEL:-}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      IMAGE_API_KEY: ${IMAGE_API_KEY:-}
+      IMAGE_BASE_URL: ${IMAGE_BASE_URL:-https://codex.quat.cc/v1}
+      IMAGE_MODEL: ${IMAGE_MODEL:-gpt-image-2}
+      IMAGE_SIZE: ${IMAGE_SIZE:-1024x1536}
+      IMAGE_STORAGE_DIR: /app/data/image-assets
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: 3000
       NODE_OPTIONS: --max-old-space-size=512
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - image_assets:/app/data/image-assets
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -110,3 +117,4 @@ services:
 
 volumes:
   postgres_data:
+  image_assets:

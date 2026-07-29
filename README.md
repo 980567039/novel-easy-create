@@ -14,6 +14,7 @@
 - 分卷、分章的长篇分层大纲；
 - 场景表、正文草稿和章节定稿；
 - 桌面端与手机 H5 小说预览；
+- 独立图片素材库，支持提示词生成、预览、下载和删除；
 - 小说项目 JSON 导入与完整备份导出；
 - 账号注册、登录和会话管理，每个账号只读取自己的小说与 AI 设置；
 - PostgreSQL 持久化存储。
@@ -49,6 +50,12 @@
 以阅读模式预览已完成正文，支持目录、章节切换和阅读显示设置。
 
 ![沉浸式小说预览](docs/images/reader-preview.png)
+
+### 图片素材生成
+
+首页“图片素材”入口可以生成角色、场景和封面素材。生成结果按账号隔离保存，支持大图预览、原图下载和删除。当前入口和服务端接口只对 `lingyouce@gmail.com` 开放。
+
+图片服务参考 RedInk 的 OpenAI-compatible `/images/generations` 调用方式，但使用服务器级 `IMAGE_*` 环境变量，不读取用户在“AI 设置”页面保存的模型或 API Key。
 
 ## 推荐：使用 Docker 一键部署
 
@@ -109,6 +116,9 @@ POSTGRES_USER=xiaobai
 POSTGRES_PASSWORD=请替换为足够长的字母数字随机密码
 POSTGRES_DB=xiaobai_writer
 AUTH_BOOTSTRAP_TOKEN=请使用openssl-rand-hex-32生成高强度随机口令
+IMAGE_API_KEY=图片生成服务的服务端密钥
+IMAGE_BASE_URL=https://codex.quat.cc/v1
+IMAGE_MODEL=gpt-image-2
 ```
 
 启动时显式加载：
@@ -130,6 +140,17 @@ docker compose --env-file .env.docker up -d --build
 - API Key。
 
 设置会保存在 PostgreSQL 中，API Key 只由服务端读取，不会作为浏览器公开环境变量打包。
+
+图片素材使用独立的服务器级配置，不需要每个用户重复设置：
+
+```dotenv
+IMAGE_API_KEY=图片服务密钥
+IMAGE_BASE_URL=https://codex.quat.cc/v1
+IMAGE_MODEL=gpt-image-2
+IMAGE_SIZE=1024x1536
+```
+
+如果没有设置 `IMAGE_API_KEY`，系统会兼容使用服务器已有的 `AI_API_KEY`；无论哪种方式，都不会读取用户数据库中的 AI 设置。Docker 会把图片原文件保存在独立 `image_assets` volume 中，重启或升级容器不会清除图片。
 
 如果小白作家部署在远程服务器，而 LM Studio 运行在你自己的电脑上，容器中的 `localhost` 指向容器本身，不能直接访问电脑上的 LM Studio。此时需要使用容器可访问的局域网地址或中转服务地址。
 
@@ -177,6 +198,9 @@ POSTGRES_DB=xiaobai_writer
 APP_BIND_ADDRESS=127.0.0.1
 APP_PORT=3001
 XIAOBAI_IMAGE=ghcr.io/980567039/xiaobai-writer
+IMAGE_API_KEY=图片生成服务的服务端密钥
+IMAGE_BASE_URL=https://codex.quat.cc/v1
+IMAGE_MODEL=gpt-image-2
 ```
 
 AI API Key 推荐在部署完成后通过“AI 设置”页面保存，不要写进部署文件。

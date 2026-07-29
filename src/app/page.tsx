@@ -4,14 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { UserMenu } from "@/components/UserMenu";
-import { CLAIMED_PROJECTS_NOTICE_KEY } from "@/context/AuthContext";
+import { CLAIMED_PROJECTS_NOTICE_KEY, useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api-client";
+import { hasImageAssetAccess } from "@/lib/image-assets";
 import {
   AlertCircle,
   BookOpen,
   CheckCircle2,
   Clock3,
   Download,
+  Images,
   LoaderCircle,
   Plus,
   RefreshCw,
@@ -99,6 +101,8 @@ function getDownloadFilename(response: Response, project: ProjectSummary) {
 }
 
 export default function Home() {
+  const { user } = useAuth();
+  const canGenerateImages = hasImageAssetAccess(user?.email);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [aiSettings, setAiSettings] = useState<AiSettingsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,7 +316,12 @@ export default function Home() {
               <h1 className="text-xl font-extrabold tracking-tight sm:text-3xl">你的长篇小说工作台</h1>
             </div>
           </div>
-          <nav className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+          <nav className={`grid w-full items-center gap-1 sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2 ${canGenerateImages ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"}`}>
+            {canGenerateImages && (
+              <Link href="/image-assets" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-slate-500 transition hover:bg-white hover:text-indigo-600 sm:gap-2 sm:px-3">
+                <Images size={17} /> 图片素材
+              </Link>
+            )}
             <Link href="/settings/ai" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-sm font-semibold text-slate-500 transition hover:bg-white hover:text-indigo-600 sm:px-3">
               <Settings size={17} /> AI 设置
             </Link>
@@ -330,9 +339,16 @@ export default function Home() {
             </div>
             <h2 className="text-2xl font-extrabold leading-tight sm:text-4xl">AI 负责记住全书，<br />你负责做出关键选择。</h2>
             <p className="mt-4 max-w-xl leading-relaxed text-slate-300">用故事圣经、大纲和章节状态管理长篇创作，让每一章都有作用，让伏笔有地方回家。</p>
-            <Link href="/projects/new" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-indigo-50">
-              <Plus size={17} /> 开始创建第一本小说
-            </Link>
+            <div className="mt-7 flex flex-col gap-2 sm:flex-row">
+              <Link href="/projects/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-indigo-50">
+                <Plus size={17} /> 开始创建第一本小说
+              </Link>
+              {canGenerateImages && (
+                <Link href="/image-assets" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/20">
+                  <Images size={17} /> 生成图片素材
+                </Link>
+              )}
+            </div>
           </div>
         </section>
 

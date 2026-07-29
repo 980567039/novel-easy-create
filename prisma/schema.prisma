@@ -102,6 +102,12 @@ enum GenerationJobStatus {
   CANCELLED
 }
 
+enum ImageAssetStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
 enum UserDecisionStatus {
   PROPOSED
   ACCEPTED
@@ -127,6 +133,7 @@ model User {
   decisions UserDecision[]   @relation("DecisionActor")
   aiProviderConfig AiProviderConfig?
   sessions          Session[]
+  imageAssets       ImageAsset[]
   claimedBootstrap  AuthBootstrap? @relation("BootstrapClaimer")
 }
 
@@ -169,6 +176,26 @@ model AiProviderConfig {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([provider, enabled])
+}
+
+model ImageAsset {
+  id          String           @id @default(uuid())
+  ownerId     String
+  prompt      String
+  model       String?
+  size        String?
+  mimeType    String           @default("image/png")
+  byteSize    Int?
+  storageKey  String           @unique
+  status      ImageAssetStatus @default(GENERATING)
+  error       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@index([ownerId, status])
 }
 
 model NovelProject {
