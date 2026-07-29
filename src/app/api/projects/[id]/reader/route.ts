@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { authenticateApiRequest } from "@/server/api-auth";
 import { getDatabase } from "@/server/db";
 import { getProjectReader, getReaderChapter } from "@/server/modules/reader/service";
 
@@ -22,20 +21,18 @@ function databaseUnavailable() {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateApiRequest(request);
-  if (!auth.ok) return auth.response;
   const { id: projectId } = await params;
   const chapterId = new URL(request.url).searchParams.get("chapterId")?.trim();
 
   try {
     if (chapterId) {
-      const result = await getReaderChapter(getDatabase(), auth.user.id, projectId, chapterId);
+      const result = await getReaderChapter(getDatabase(), projectId, chapterId);
       if (!result.projectFound) return notFound("PROJECT_NOT_FOUND");
       if (!result.chapter) return notFound("CHAPTER_NOT_FOUND");
       return NextResponse.json({ chapter: result.chapter });
     }
 
-    const result = await getProjectReader(getDatabase(), auth.user.id, projectId);
+    const result = await getProjectReader(getDatabase(), projectId);
     if (!result) return notFound("PROJECT_NOT_FOUND");
     return NextResponse.json(result);
   } catch {

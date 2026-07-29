@@ -169,9 +169,31 @@ try {
 
   const projectId = LEGACY_PROJECT_IDS[0];
   const chapterId = retained.projects[0].chapters[0].id;
+
+  const publicReader = await request(`/api/projects/${projectId}/reader`);
+  assert.equal(publicReader.body.project.id, projectId);
+  assert.equal(publicReader.body.project.title, "极品AI刁民");
+  assert.equal(publicReader.body.stats.readableChapterCount, 1);
+  assert.equal(publicReader.body.chapters[0].id, chapterId);
+
+  const publicChapter = await request(`/api/projects/${projectId}/reader?chapterId=${chapterId}`);
+  assert.equal(publicChapter.body.chapter.id, chapterId);
+  assert.equal(publicChapter.body.chapter.content, "必须原样保留的正文。");
+
+  await request(`/api/projects/${projectId}/reader`, { cookie: cookieB });
+
+  await request(`/api/chapters/${chapterId}/finalize?projectId=${projectId}`, {
+    method: "POST",
+    cookie: cookieA,
+    body: JSON.stringify({ revisionId: retained.projects[0].chapters[0].revisions[0].id }),
+  });
+  const chaptersAfterFinalize = await request(`/api/projects/${projectId}/chapters`, { cookie: cookieA });
+  const finalizedChapter = chaptersAfterFinalize.body.chapters.find((chapter) => chapter.id === chapterId);
+  assert.equal(finalizedChapter.status, "CONFIRMED");
+  assert.equal(finalizedChapter.latestRevision.status, "FINAL");
+
   const forbiddenReads = [
     `/api/projects/${projectId}/export`,
-    `/api/projects/${projectId}/reader`,
     `/api/projects/${projectId}/outline`,
     `/api/projects/${projectId}/outline?jobId=${retained.projects[0].chapters[0].generationJobs[0].id}`,
     `/api/projects/${projectId}/chapters`,

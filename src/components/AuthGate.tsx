@@ -8,12 +8,17 @@ import { useAuth } from "@/context/AuthContext";
 import { currentPath, safeNextPath } from "@/lib/api-client";
 
 const PUBLIC_PATHS = new Set(["/login", "/register"]);
+const PUBLIC_READER_PATH = /^\/projects\/[^/]+\/read\/?$/;
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.has(pathname) || PUBLIC_READER_PATH.test(pathname);
+}
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { status, error, refresh } = useAuth();
-  const isPublic = PUBLIC_PATHS.has(pathname);
+  const isPublic = isPublicPath(pathname);
 
   useEffect(() => {
     if (!isPublic && status === "unauthenticated") {

@@ -135,6 +135,19 @@ function normalizeChapter(value: unknown, volume?: VolumeDetail): Chapter | null
   };
 }
 
+function isFinalChapter(chapter: Chapter) {
+  // ChapterPlan uses the generic CONFIRMED status after finalization. The
+  // persisted source of truth for the checkmark is the latest revision.
+  return chapter.status === "FINAL"
+    || chapter.revisionStatus === "FINAL"
+    || chapter.latestRevision?.status === "FINAL";
+}
+
+function chapterDisplayStatus(chapter: Chapter) {
+  if (isFinalChapter(chapter)) return "FINAL";
+  return chapter.revisionStatus ?? chapter.status ?? "SUGGESTED";
+}
+
 function wordCount(value: string) {
   return value.trim() ? value.trim().split(/\s+/).join("").length : 0;
 }
@@ -185,6 +198,8 @@ export default function ChaptersPage() {
 
   const selectedChapter = useMemo(() => chapters.find((chapter) => chapter.id === selectedId) ?? chapters[0] ?? null, [chapters, selectedId]);
   const currentWordCount = wordCount(content);
+  const finalizedCount = useMemo(() => chapters.filter(isFinalChapter).length, [chapters]);
+  const finalizedProgress = chapters.length > 0 ? Math.round((finalizedCount / chapters.length) * 100) : 0;
   const missingDraftCount = useMemo(() => chapters.filter((chapter) => typeof chapter.latestRevision?.id !== "string").length, [chapters]);
   const batchOutput = useMemo(() => asRecord(batchJob?.output), [batchJob]);
   const batchStatus = normalizedStatus(batchJob?.status);
@@ -474,7 +489,7 @@ export default function ChaptersPage() {
         const body = await response.json().catch(() => ({})) as { revision?: unknown; error?: string };
         if (!response.ok) throw new Error(body.error ?? "章节定稿失败");
         setChapters((current) => current.map((chapter) => chapter.id === selectedChapter.id
-          ? { ...chapter, status: "FINAL", revisionStatus: "FINAL", content, wordCount: currentWordCount, latestRevision: { ...chapter.latestRevision, id: savedRevision, content, wordCount: currentWordCount, status: "FINAL" } }
+          ? { ...chapter, revisionStatus: "FINAL", content, wordCount: currentWordCount, latestRevision: { ...chapter.latestRevision, id: savedRevision, content, wordCount: currentWordCount, status: "FINAL" } }
           : chapter));
       }
       setLastSaved(new Date());
@@ -738,14 +753,14 @@ export default function ChaptersPage() {
               </select>
             </label>
             <aside className="hidden self-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-5 lg:block">
-              <div className="px-3 pb-3 pt-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">写作进度</p><div className="mt-2 flex items-end justify-between"><span className="text-xl font-extrabold">{chapters.filter((chapter) => chapter.status === "FINAL" || chapter.revisionStatus === "FINAL").length}<span className="ml-1 text-sm font-medium text-slate-400">/ {chapters.length}</span></span><span className="text-xs text-slate-400">已定稿</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((chapters.filter((chapter) => chapter.status === "FINAL" || chapter.revisionStatus === "FINAL").length / chapters.length) * 100)}%` }} /></div></div>
+              <div className="px-3 pb-3 pt-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">写作进度</p><div className="mt-2 flex items-end justify-between"><span className="text-xl font-extrabold">{finalizedCount}<span className="ml-1 text-sm font-medium text-slate-400">/ {chapters.length}</span></span><span className="text-xs text-slate-400">已定稿</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${finalizedProgress}%` }} /></div></div>
               <div className="max-h-[calc(100vh-220px)] space-y-1 overflow-y-auto border-t border-slate-100 pt-3">
-                {chapters.map((chapter) => <button type="button" key={chapter.id} onClick={() => selectChapter(chapter.id)} className={`group w-full rounded-xl px-3 py-3 text-left transition ${selectedChapter?.id === chapter.id ? "bg-indigo-50 text-indigo-900 ring-1 ring-indigo-100" : "hover:bg-slate-50"}`}><div className="flex items-center gap-2"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${selectedChapter?.id === chapter.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>{chapter.number}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{chapter.title}</span>{chapter.status === "FINAL" && <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />}</div><p className="mt-1 truncate pl-8 text-xs text-slate-400">{statusLabel[chapter.status ?? ""] ?? "计划"}{chapter.plannedWordCount ? ` · ${chapter.plannedWordCount} 字` : ""}</p></button>)}
+                {chapters.map((chapter) => <button type="button" key={chapter.id} onClick={() => selectChapter(chapter.id)} className={`group w-full rounded-xl px-3 py-3 text-left transition ${selectedChapter?.id === chapter.id ? "bg-indigo-50 text-indigo-900 ring-1 ring-indigo-100" : "hover:bg-slate-50"}`}><div className="flex items-center gap-2"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${selectedChapter?.id === chapter.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>{chapter.number}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{chapter.title}</span>{isFinalChapter(chapter) && <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />}</div><p className="mt-1 truncate pl-8 text-xs text-slate-400">{statusLabel[chapterDisplayStatus(chapter)] ?? "计划"}{chapter.plannedWordCount ? ` · ${chapter.plannedWordCount} 字` : ""}</p></button>)}
               </div>
             </aside>
 
             {selectedChapter && <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
-              <div className="border-b border-slate-100 px-4 py-4 sm:px-8 sm:py-5"><div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4"><div className="min-w-0"><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedChapter.status === "FINAL" || selectedChapter.revisionStatus === "FINAL" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[selectedChapter.status === "FINAL" ? "FINAL" : selectedChapter.revisionStatus ?? selectedChapter.status ?? ""] ?? "草稿"}</span></div></div>
+              <div className="border-b border-slate-100 px-4 py-4 sm:px-8 sm:py-5"><div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4"><div className="min-w-0"><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${isFinalChapter(selectedChapter) ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[chapterDisplayStatus(selectedChapter)] ?? "草稿"}</span></div></div>
               <div className="grid gap-5 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

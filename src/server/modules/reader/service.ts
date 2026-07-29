@@ -64,9 +64,9 @@ const readerChapterSelect = {
   },
 } satisfies Prisma.ChapterPlanSelect;
 
-export async function getProjectReader(db: Database, userId: string, projectId: string) {
-  const project = await db.novelProject.findFirst({
-    where: { id: projectId, ownerId: userId },
+export async function getProjectReader(db: Database, projectId: string) {
+  const project = await db.novelProject.findUnique({
+    where: { id: projectId },
     select: {
       id: true,
       title: true,
@@ -94,9 +94,9 @@ export async function getProjectReader(db: Database, userId: string, projectId: 
   };
 }
 
-export async function getReaderChapter(db: Database, userId: string, projectId: string, chapterId: string) {
-  const project = await db.novelProject.findFirst({
-    where: { id: projectId, ownerId: userId },
+export async function getReaderChapter(db: Database, projectId: string, chapterId: string) {
+  const project = await db.novelProject.findUnique({
+    where: { id: projectId },
     select: { id: true },
   });
 
