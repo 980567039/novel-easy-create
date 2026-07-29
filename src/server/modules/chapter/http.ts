@@ -42,11 +42,17 @@ export async function handleGeneration(request: Request, userId: string, chapter
   if (parsedBody.error) return parsedBody.error;
   const parsed = GenerateChapterInputSchema.safeParse(parsedBody.value ?? {});
   if (!parsed.success) return NextResponse.json({ code: "VALIDATION_ERROR", error: "章节生成参数格式不正确。", details: parsed.error.flatten().fieldErrors }, { status: 400 });
+  if (type === "SCENE_PLAN" && parsed.data.mode === "rewrite") {
+    return NextResponse.json({ code: "INVALID_GENERATION_MODE", error: "场景表不支持章节重写模式。" }, { status: 400 });
+  }
 
   try {
     const db = getDatabase();
     const chapter = await getChapterDetail(db, userId, chapterId, projectId);
     if (!chapter) return NextResponse.json({ code: "CHAPTER_NOT_FOUND", error: "章节不存在。" }, { status: 404 });
+    if (parsed.data.mode === "rewrite" && !chapter.revisions[0]) {
+      return NextResponse.json({ code: "REVISION_NOT_FOUND", error: "当前章节没有可重写的正文。" }, { status: 409 });
+    }
     const job = await createChapterGenerationJob(db, { userId, projectId: chapter.projectId, chapterPlanId: chapter.id, type, idempotencyKey: parsed.data.idempotencyKey });
     if (job.status === "SUCCEEDED") return NextResponse.json({ jobId: job.id, status: "succeeded", progress: job.progress, output: job.output }, { status: 200 });
     if (job.status === "RUNNING" || job.status === "QUEUED") {

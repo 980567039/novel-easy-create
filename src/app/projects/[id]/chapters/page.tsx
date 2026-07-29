@@ -165,12 +165,14 @@ export default function ChaptersPage() {
   const [content, setContent] = useState("");
   const [scenePlan, setScenePlan] = useState<ScenePlan | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"scene" | "draft" | "save" | "finalize" | null>(null);
+  const [busy, setBusy] = useState<"scene" | "draft" | "rewrite" | "save" | "finalize" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [outlineFallback, setOutlineFallback] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
+  const [rewriteOpen, setRewriteOpen] = useState(false);
+  const [rewriteInstruction, setRewriteInstruction] = useState("");
   const [batchCount, setBatchCount] = useState<BatchCount>(5);
   const [batchJob, setBatchJob] = useState<BatchDraftJob | null>(null);
   const [batchRemainingCount, setBatchRemainingCount] = useState<number | null>(null);
@@ -321,6 +323,8 @@ export default function ChaptersPage() {
     setContent(stored ?? selectedChapter.content ?? "");
     setScenePlan(selectedChapter.scenePlan ?? null);
     setRevisionId(selectedChapter.latestRevision?.id ?? null);
+    setRewriteOpen(false);
+    setRewriteInstruction("");
     setNotice(null);
     setError(null);
   }, [projectId, selectedChapter]);
@@ -509,16 +513,31 @@ export default function ChaptersPage() {
     }
   };
 
-  const generateDraft = async () => {
+  const generateDraft = async (mode: "generate" | "rewrite" = "generate") => {
     if (!selectedChapter || batchRunning || batchCancelling) return;
-    setBusy("draft");
+    const instruction = rewriteInstruction.trim();
+    if (mode === "rewrite" && !instruction) {
+      setError("请先填写本次重写的修改意见。");
+      return;
+    }
+    if (mode === "rewrite" && !content.trim()) {
+      setError("当前章节还没有正文，请先生成或填写正文初稿。");
+      return;
+    }
+    setBusy(mode === "rewrite" ? "rewrite" : "draft");
     setError(null);
     setNotice(null);
     try {
+      // Rewrite always uses the text currently visible in the editor. Persist
+      // unsaved edits first so the server can use that exact revision as the
+      // source and preserve a reliable parent/child revision chain.
+      if (mode === "rewrite" && content.trim() !== (selectedChapter.latestRevision?.content ?? "").trim()) {
+        await persistDraft();
+      }
       const response = await apiFetch(`/api/chapters/${selectedChapter.id}/drafts/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenePlan }),
+        body: JSON.stringify({ scenePlan, mode, ...(mode === "rewrite" ? { instruction } : {}) }),
       });
       const body = await response.json().catch(() => ({})) as { jobId?: string; draft?: string; content?: string; revision?: { id?: string; content?: string }; error?: string };
       if (!response.ok) throw new Error(body.error ?? "正文生成失败");
@@ -537,12 +556,41 @@ export default function ChaptersPage() {
           if (typeof revisionsBody.latestRevision?.id === "string") setRevisionId(revisionsBody.latestRevision.id);
         }
       }
+      if (!generated) {
+        const revisionsResponse = await apiFetch(`/api/projects/${projectId}/chapters/${selectedChapter.id}/drafts`, { cache: "no-store" });
+        const revisionsBody = await revisionsResponse.json().catch(() => ({})) as { latestRevision?: { id?: string; content?: string }; error?: string };
+        if (!revisionsResponse.ok) throw new Error(revisionsBody.error ?? "正文生成成功，但读取新版本失败。");
+        generated = revisionsBody.latestRevision?.content;
+        if (typeof revisionsBody.latestRevision?.id === "string") setRevisionId(revisionsBody.latestRevision.id);
+      }
       if (!generated) throw new Error("正文生成成功，但返回内容为空。");
       setContent(generated);
       saveLocalDraft(generated);
-      setNotice("正文初稿已生成，可直接编辑后保存。");
+      const latestResponse = await apiFetch(`/api/projects/${projectId}/chapters/${selectedChapter.id}/drafts`, { cache: "no-store" });
+      const latestBody = await latestResponse.json().catch(() => ({})) as { latestRevision?: { id?: string; content?: string; wordCount?: number | null; status?: string } };
+      const latestRevision = latestResponse.ok ? latestBody.latestRevision : undefined;
+      if (typeof latestRevision?.id === "string") setRevisionId(latestRevision.id);
+      setChapters((current) => current.map((chapter) => chapter.id === selectedChapter.id
+        ? {
+          ...chapter,
+          content: generated,
+          wordCount: wordCount(generated),
+          revisionStatus: latestRevision?.status ?? "DRAFT",
+          latestRevision: {
+            ...chapter.latestRevision,
+            ...latestRevision,
+            content: generated,
+            wordCount: latestRevision?.wordCount ?? wordCount(generated),
+          },
+        }
+        : chapter));
+      if (mode === "rewrite") {
+        setRewriteOpen(false);
+        setRewriteInstruction("");
+      }
+      setNotice(mode === "rewrite" ? "章节已按修改意见重写，旧版本仍然保留。" : "正文初稿已生成，可直接编辑后保存。");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "正文生成失败");
+      setError(requestError instanceof Error ? requestError.message : (mode === "rewrite" ? "章节重写失败" : "正文生成失败"));
     } finally {
       setBusy(null);
     }
@@ -689,7 +737,57 @@ export default function ChaptersPage() {
             {selectedChapter && <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-5 py-5 sm:px-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-semibold text-indigo-600">第 {selectedChapter.number} 章{selectedChapter.volumeTitle ? ` · ${selectedChapter.volumeTitle}` : ""}</p><h2 className="mt-1 text-2xl font-extrabold tracking-tight">{selectedChapter.title}</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">{selectedChapter.summary ?? "暂无章节摘要，先从场景表开始整理。"}</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectedChapter.status === "FINAL" || selectedChapter.revisionStatus === "FINAL" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel[selectedChapter.status === "FINAL" ? "FINAL" : selectedChapter.revisionStatus ?? selectedChapter.status ?? ""] ?? "草稿"}</span></div></div>
               <div className="grid gap-6 px-5 py-6 sm:px-8 xl:grid-cols-[minmax(0,1fr)_300px]">
-                <div className="min-w-0"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">正文编辑</h3><p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p></div><button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning || batchCancelling} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchCancelling ? "终止中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button></div><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[520px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-5 text-[15px] leading-8 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="flex items-center gap-2"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div></div>
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold">正文编辑</h3>
+                      <p className="mt-1 text-xs text-slate-400">{currentWordCount.toLocaleString()} 字{selectedChapter.plannedWordCount ? ` · 计划 ${selectedChapter.plannedWordCount.toLocaleString()} 字` : ""}{lastSaved ? ` · ${lastSaved.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 保存` : ""}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {content.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRewriteOpen(true);
+                            setError(null);
+                            setNotice(null);
+                          }}
+                          disabled={busy !== null || batchRunning || batchCancelling}
+                          className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          <Sparkles size={15} />
+                          {busy === "rewrite" ? "重写中..." : "重写"}
+                        </button>
+                      )}
+                      <button type="button" onClick={() => void generateDraft()} disabled={busy !== null || batchRunning || batchCancelling} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-50"><WandSparkles size={15} />{busy === "draft" ? "生成中..." : batchCancelling ? "终止中..." : batchRunning ? "批量生成中..." : "生成正文初稿"}</button>
+                    </div>
+                  </div>
+                  {rewriteOpen && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                      <label htmlFor="rewrite-instruction" className="text-sm font-bold text-amber-950">这次希望怎样修改？</label>
+                      <p className="mt-1 text-xs leading-relaxed text-amber-800">AI 会根据当前编辑器中的正文重新生成完整章节，旧版本会继续保留。</p>
+                      <textarea
+                        id="rewrite-instruction"
+                        value={rewriteInstruction}
+                        onChange={(event) => setRewriteInstruction(event.target.value)}
+                        maxLength={10_000}
+                        rows={4}
+                        autoFocus
+                        placeholder="例如：加强主角和反派的正面冲突，减少解释性叙述，让结尾停在更强的悬念上。"
+                        className="mt-3 w-full resize-y rounded-lg border border-amber-200 bg-white p-3 text-sm leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                      />
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <button type="button" onClick={() => { setRewriteOpen(false); setRewriteInstruction(""); }} disabled={busy === "rewrite"} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">取消</button>
+                        <button type="button" onClick={() => void generateDraft("rewrite")} disabled={busy !== null || batchRunning || batchCancelling || !rewriteInstruction.trim()} className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+                          {busy === "rewrite" ? <LoaderCircle size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                          {busy === "rewrite" ? "正在重写..." : "按意见重写"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="从一个具体场景开始。写下人物此刻想要什么、遇到什么阻力，以及场景结束时发生了什么变化。" className="min-h-[520px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 p-5 text-[15px] leading-8 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-50" />
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-400">草稿会先保存在本机，避免切换章节时丢失。</p><div className="flex items-center gap-2"><button type="button" onClick={() => void saveDraft(false)} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Save size={15} />{busy === "save" ? "保存中..." : "保存草稿"}</button><button type="button" onClick={() => void saveDraft(true)} disabled={busy !== null || !content.trim()} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Check size={15} />{busy === "finalize" ? "定稿中..." : "标记为定稿"}</button></div></div>
+                </div>
                 <aside className="space-y-4"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">场景表</h3><button type="button" onClick={() => void generateScenePlan()} disabled={busy !== null} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"><Sparkles size={14} />{busy === "scene" ? "生成中" : scenePlan ? "重新生成" : "生成"}</button></div><dl className="space-y-3 text-sm"><div><dt className="text-xs font-semibold text-slate-400">本章目标</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.objective ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">主要冲突</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.conflict ?? "待补充"}</dd></div><div><dt className="text-xs font-semibold text-slate-400">结束变化</dt><dd className="mt-1 leading-relaxed text-slate-700">{selectedChapter.expectedOutcome ?? "待补充"}</dd></div>{scenePlan?.chapterPromise && <div><dt className="text-xs font-semibold text-slate-400">读者期待</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.chapterPromise}</dd></div>}{scenePlan?.endingState && <div><dt className="text-xs font-semibold text-slate-400">结束状态</dt><dd className="mt-1 leading-relaxed text-slate-700">{scenePlan.endingState}</dd></div>}</dl>{scenePlan?.scenes && scenePlan.scenes.length > 0 && <div className="mt-4 border-t border-slate-200 pt-3"><p className="mb-2 text-xs font-semibold text-slate-400">场景节拍</p><ol className="space-y-3">{scenePlan.scenes.map((scene, index) => <li key={`${scene.title ?? "scene"}-${index}`} className="flex gap-2 text-xs leading-relaxed text-slate-600"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white font-semibold text-indigo-600">{scene.order ?? index + 1}</span><span><strong className="font-semibold text-slate-700">{scene.title ?? "场景"}</strong>{scene.setting ? ` · ${scene.setting}` : ""}{scene.objective ? <span className="mt-0.5 block text-slate-500">目标：{scene.objective}</span> : null}{scene.turningPoint ? <span className="mt-0.5 block text-slate-500">转折：{scene.turningPoint}</span> : null}</span></li>)}</ol></div>}</div><div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm leading-relaxed text-indigo-900"><p className="font-bold">写作提示</p><p className="mt-2 text-indigo-700">每一场都应让人物、关系、信息或危险程度至少发生一项可追踪变化。</p></div></aside>
               </div>
             </section>}

@@ -20,6 +20,15 @@ export const GenerateChapterInputSchema = z.object({
   instruction: z.string().trim().max(10_000).optional(),
   idempotencyKey: z.string().trim().min(1).max(200).optional(),
   temperature: z.number().min(0).max(2).optional(),
+  mode: z.enum(["generate", "rewrite"]).optional(),
+}).superRefine((value, context) => {
+  if (value.mode === "rewrite" && !value.instruction?.trim()) {
+    context.addIssue({
+      code: "custom",
+      path: ["instruction"],
+      message: "重写章节时必须填写修改意见。",
+    });
+  }
 });
 
 export type GenerateChapterInput = z.infer<typeof GenerateChapterInputSchema>;

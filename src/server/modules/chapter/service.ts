@@ -246,23 +246,63 @@ export async function generateDraft(
 ) {
   const context = await buildChapterContext(db, userId, chapterId);
   if (!context) throw new Error("章节不存在。");
+  const mode = input.mode === "rewrite" ? "rewrite" : "generate";
+  // Capture the exact revision used by the model before the long-running AI
+  // request. A later concurrent save may advance the revision number, but a
+  // rewrite must keep pointing to the text it actually read.
+  const sourceRevision = mode === "rewrite"
+    ? await db.chapterRevision.findFirst({
+      where: { chapterPlanId: chapterId, projectId: context.project.id },
+      orderBy: { revisionNumber: "desc" },
+      select: { id: true, revisionNumber: true, content: true },
+    })
+    : null;
+  if (mode === "rewrite" && !sourceRevision) {
+    throw new Error("当前章节没有可重写的正文。");
+  }
   const provider = await getConfiguredAiProvider(userId);
   const sceneJob = await getChapterGenerationJob(db, chapterId, undefined, "SCENE_PLAN");
   const scenePlan = sceneJob ? asRecord(sceneJob.output).data : null;
-  const result = await provider.generateText({ temperature: input.temperature ?? 0.7, maxTokens: 20_000, timeoutMs: 300_000, signal: execution.signal, messages: [
-    { role: "system", content: "你是一名中文长篇小说作者。根据章节计划、场景表和上下文写出连贯的正文初稿。遵守故事圣经的视角和文风，不擅自改变锁定事实。只输出正文，不要标题、解释或 Markdown。" },
-    { role: "user", content: JSON.stringify({ ...context, scenePlan, instruction: input.instruction ?? null }) },
-  ] });
-  await updateChapterGenerationJob(db, jobId, "saving", { progress: 85, model: result.model ?? null });
+  const messages = mode === "rewrite"
+    ? [
+      {
+        role: "system" as const,
+        content: "你是一名中文长篇小说作者和修订编辑。请完整阅读旧稿，严格按作者的修改要求重写本章，并输出一份可直接替换旧稿的完整新正文。保留与故事圣经、章节计划及前文连续性一致的事实。禁止只输出修改片段、修改说明、标题或 Markdown。",
+      },
+      {
+        role: "user" as const,
+        content: JSON.stringify({
+          ...context,
+          scenePlan,
+          rewrite: {
+            sourceRevisionId: sourceRevision?.id,
+            sourceRevisionNumber: sourceRevision?.revisionNumber,
+            sourceContent: sourceRevision?.content,
+            instruction: input.instruction,
+          },
+        }),
+      },
+    ]
+    : [
+      { role: "system" as const, content: "你是一名中文长篇小说作者。根据章节计划、场景表和上下文写出连贯的正文初稿。遵守故事圣经的视角和文风，不擅自改变锁定事实。只输出正文，不要标题、解释或 Markdown。" },
+      { role: "user" as const, content: JSON.stringify({ ...context, scenePlan, instruction: input.instruction ?? null }) },
+    ];
+  const result = await provider.generateText({ temperature: input.temperature ?? 0.7, maxTokens: 20_000, timeoutMs: 300_000, signal: execution.signal, messages });
+  await updateChapterGenerationJob(db, jobId, "saving", {
+    progress: 85,
+    model: result.model ?? null,
+    output: { mode, sourceRevisionId: sourceRevision?.id ?? null },
+  });
   const revision = await db.$transaction(async (tx) => {
     if (execution.canSaveRevision && !await execution.canSaveRevision(tx)) {
       throw new ChapterDraftGenerationCancelledError();
     }
     const latest = await tx.chapterRevision.findFirst({ where: { chapterPlanId: chapterId }, orderBy: { revisionNumber: "desc" }, select: { revisionNumber: true, id: true } });
-    return tx.chapterRevision.create({ data: { projectId: context.project.id, chapterPlanId: chapterId, parentRevisionId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, content: result.content.trim(), wordCount: wordCount(result.content), source: "AI", createdBy: "AI", status: "DRAFT" } });
+    const parentRevisionId = mode === "rewrite" ? sourceRevision!.id : latest?.id ?? null;
+    return tx.chapterRevision.create({ data: { projectId: context.project.id, chapterPlanId: chapterId, parentRevisionId, revisionNumber: (latest?.revisionNumber ?? 0) + 1, content: result.content.trim(), wordCount: wordCount(result.content), source: "AI", createdBy: "AI", status: "DRAFT" } });
   });
   await db.generationJob.update({ where: { id: jobId }, data: { chapterRevisionId: revision.id } });
-  await updateChapterGenerationJob(db, jobId, "succeeded", { progress: 100, model: result.model ?? null, output: { revisionId: revision.id, wordCount: revision.wordCount, usage: result.usage ?? null, generatedAt: new Date().toISOString() }, finishedAt: new Date() });
+  await updateChapterGenerationJob(db, jobId, "succeeded", { progress: 100, model: result.model ?? null, output: { mode, sourceRevisionId: sourceRevision?.id ?? null, parentRevisionId: revision.parentRevisionId, revisionId: revision.id, wordCount: revision.wordCount, usage: result.usage ?? null, generatedAt: new Date().toISOString() }, finishedAt: new Date() });
   return { ...result, revision };
 }
 
