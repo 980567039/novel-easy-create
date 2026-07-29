@@ -52,16 +52,6 @@ textarea {
   }
 }
 
-@media (min-width: 640px) {
-  details.desktop-expanded > summary {
-    display: none;
-  }
-
-  details.desktop-expanded:not([open]) > :not(summary) {
-    display: block;
-  }
-}
-
 /* 渐变文字效果 */
 .gradient-text {
   background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);

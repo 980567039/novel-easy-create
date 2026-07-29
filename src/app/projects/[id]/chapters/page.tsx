@@ -194,6 +194,7 @@ export default function ChaptersPage() {
   const [batchCancelling, setBatchCancelling] = useState(false);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchPollVersion, setBatchPollVersion] = useState(0);
+  const [batchExpanded, setBatchExpanded] = useState(false);
   const batchPollGenerationRef = useRef(0);
 
   const selectedChapter = useMemo(() => chapters.find((chapter) => chapter.id === selectedId) ?? chapters[0] ?? null, [chapters, selectedId]);
@@ -210,6 +211,7 @@ export default function ChaptersPage() {
   const batchFailed = asNumber(batchOutput.failed) ?? 0;
   const batchSkipped = asNumber(batchOutput.skipped) ?? 0;
   const batchProgress = Math.min(100, Math.max(0, asNumber(batchJob?.progress) ?? (batchTotal > 0 ? Math.round((batchCompleted / batchTotal) * 100) : 0)));
+  const batchPanelExpanded = batchExpanded || batchRunning || batchStarting || batchCancelling;
   const batchChapterStates = Array.isArray(batchOutput.chapters) ? batchOutput.chapters.map(asRecord) : [];
   const failedBatchChapters = batchChapterStates.filter((item) => normalizedStatus(item.status) === "failed");
   const cancelledBatchChapters = batchChapterStates.filter((item) => normalizedStatus(item.status) === "cancelled");
@@ -633,12 +635,19 @@ export default function ChaptersPage() {
         {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
         {chapters.length > 0 && (
-          <details className="desktop-expanded mb-4 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-5" open={batchRunning || batchStarting || batchCancelling || undefined}>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-900 sm:hidden [&::-webkit-details-marker]:hidden">
+          <section className="mb-4 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-5" aria-labelledby="batch-drafts-title">
+            <button
+              type="button"
+              aria-expanded={batchPanelExpanded}
+              aria-controls="batch-drafts-panel"
+              onClick={() => setBatchExpanded((current) => !current)}
+              className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm font-bold text-slate-900 sm:hidden"
+            >
               <span className="inline-flex items-center gap-2"><WandSparkles size={17} className="text-indigo-600" />批量生成正文</span>
-              <span className="text-xs font-semibold text-indigo-600">{batchRunning ? `${batchProgress}%` : `剩余 ${missingDraftCount} 章`} · 展开</span>
-            </summary>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <span className="text-xs font-semibold text-indigo-600">{batchRunning ? `${batchProgress}%` : `剩余 ${missingDraftCount} 章`} · {batchPanelExpanded ? "收起" : "展开"}</span>
+            </button>
+            <div id="batch-drafts-panel" className={`${batchPanelExpanded ? "block" : "hidden"} pt-3 sm:block sm:pt-0`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600"><WandSparkles size={17} /></div>
@@ -673,7 +682,7 @@ export default function ChaptersPage() {
               </div>
             </div>
 
-            <div aria-live="polite" aria-atomic="true">
+              <div aria-live="polite" aria-atomic="true">
               {batchError && <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{batchError}</p>}
               {batchJob && (
                 <div className="mt-4 border-t border-slate-100 pt-4">
@@ -738,8 +747,9 @@ export default function ChaptersPage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
-          </details>
+          </section>
         )}
 
         {chapters.length === 0 ? (
