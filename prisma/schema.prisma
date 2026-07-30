@@ -184,6 +184,10 @@ model ImageAsset {
   prompt      String
   model       String?
   size        String?
+  aspectRatio String?
+  actualWidth Int?
+  actualHeight Int?
+  generationMode String          @default("TEXT_TO_IMAGE")
   mimeType    String           @default("image/png")
   byteSize    Int?
   storageKey  String           @unique
